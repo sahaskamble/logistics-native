@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Boxes, Container, LucideIcon, Package, Search, Truck, Warehouse } from "lucide-react-native";
 import { useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View, RefreshControl } from "react-native";
 
 interface Services {
   title: string,
@@ -14,7 +14,11 @@ interface Services {
 }
 
 export default function HomePage() {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState<number | null>(0);
+  const [selectedService, setSelectedService] = useState("CFS");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const services: Services[] = [
     {
       title: "CFS",
@@ -39,16 +43,30 @@ export default function HomePage() {
   ]
 
   const handleServicePress = (service: Services, index: number) => {
-    console.log(`Service pressed: ${service.title}`);
-    // Add your navigation or action here
-    console.log(index);
-    setActiveIndex(index);
+    // Toggle service selection - if same service clicked, deselect it
+    if (activeIndex === index) {
+      setActiveIndex(null);
+      setSelectedService("");
+    } else {
+      setActiveIndex(index);
+      setSelectedService(service.title);
+    }
   }
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    // Trigger refresh by updating refreshKey which will cause HomeServiceProvider to refetch
+    setRefreshKey((prev) => prev + 1);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
 
   return (
     <ScrollView
       contentContainerClassName=""
       className="px-4 pt-4"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {/* Horizontally Scrollable Services */}
       <ScrollView
@@ -62,19 +80,19 @@ export default function HomePage() {
             <TouchableOpacity
               key={index}
               onPress={() => handleServicePress(service, index)}
-              className={`w-auto flex-row items-center gap-2 px-4 py-3 rounded-lg border border-border transition-all ${index === activeIndex
+              className={`w-auto flex-row items-center gap-2 px-4 py-3 rounded-lg border border-border transition-all ${activeIndex !== null && index === activeIndex
                 ? 'bg-primary'
-                : 'bg-card'  // or 'bg-transparent' if you want inactive ones lighter
+                : 'bg-card'
                 }`}
               activeOpacity={0.7}
             >
               <Icon
                 as={service.icon}
                 size={24}
-                className={index === activeIndex ? 'text-primary-foreground' : 'text-foreground'}
+                className={activeIndex !== null && index === activeIndex ? 'text-primary-foreground' : 'text-foreground'}
               />
               <Text
-                className={`text-base font-medium ${index === activeIndex ? 'text-primary-foreground' : 'text-foreground'
+                className={`text-base font-medium ${activeIndex !== null && index === activeIndex ? 'text-primary-foreground' : 'text-foreground'
                   }`}
               >
                 {service.title}
@@ -88,16 +106,11 @@ export default function HomePage() {
         <Input
           placeholder="Search Providers"
           className="flex-1 h-12 sm:h-auto text-xl sm:text-lg"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
-        <Button
-          size={"icon"}
-          variant={'outline'}
-          className="h-12 sm:h-auto"
-        >
-          <Icon as={Search} size={25} />
-        </Button>
       </View>
-      <HomeServiceProvider />
+      <HomeServiceProvider selectedService={selectedService} searchQuery={searchQuery} refreshKey={refreshKey} />
     </ScrollView >
   )
 }

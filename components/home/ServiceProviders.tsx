@@ -1,5 +1,5 @@
 import { getServiceProviders } from "@/lib/actions/providers/fetch";
-import { ServiceProviderResponse } from "@/lib/pocketbase-types";
+import type { ServiceProvider } from "@/lib/actions/providers/fetch";
 import React, { useEffect, useRef, useState } from "react";
 import { Dimensions, Image, NativeScrollEvent, NativeSyntheticEvent, Text } from "react-native";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -11,18 +11,25 @@ import { Star } from "lucide-react-native";
 import { Icon } from "@/components/ui/icon";
 import pb from "@/lib/pocketbase/pb";
 import PricingRequestDialog from "./PricingRequest";
+import { Link, useRouter } from "expo-router";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface Props {
-  provider: ServiceProviderResponse;
+  provider: ServiceProvider;
 }
 
 function ServiceProviderCard({ provider }: Props) {
+  const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
-  const autoScrollRef = useRef<NodeJS.Timeout | null>(null);
+  const autoScrollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const images = provider.files || [];
+
+  const handleViewDetails = () => {
+    // Navigate to details page with provider ID
+    router.push(`/(protected)/details/${provider.id}`);
+  };
 
   const startAutoScroll = () => {
     if (autoScrollRef.current || images.length <= 1) return;
@@ -85,8 +92,8 @@ function ServiceProviderCard({ provider }: Props) {
             onScrollBeginDrag={handleScrollBegin}
             onMomentumScrollEnd={handleScrollEnd}
           >
-            {provider.files?.length > 0 ? (
-              provider.files.map((file: string, idx: number) => (
+            {images.length > 0 ? (
+              images.map((file: string, idx: number) => (
                 <View
                   key={idx}
                   style={{ width: SCREEN_WIDTH, height: "100%" }}
@@ -106,9 +113,9 @@ function ServiceProviderCard({ provider }: Props) {
           </ScrollView>
 
           {/* Optional: Dot indicators */}
-          {provider.files?.length > 1 && (
+          {images.length > 1 && (
             <View className="absolute bottom-2 left-0 right-0 flex-row justify-center gap-1">
-              {provider.files.map((_, idx) => (
+              {images.map((_: string, idx: number) => (
                 <View
                   key={idx}
                   className={`w-2 h-2 rounded-full ${idx === currentIndex ? "bg-white" : "bg-white/40"}`}
@@ -155,10 +162,18 @@ function ServiceProviderCard({ provider }: Props) {
 
         {/* Action Buttons */}
         <View className="flex-row gap-3 mt-4">
-          <PricingRequestDialog />
-          <Button className="flex-1" variant="outline">
-            <Text className="font-medium">View Details</Text>
-          </Button>
+          <PricingRequestDialog providerId={provider.id} />
+          <Link
+            asChild
+            href={`/details/${provider.id}`}>
+            <Button
+              className="flex-1"
+              variant="outline"
+              onPress={handleViewDetails}
+            >
+              <Text className="font-medium">View Details</Text>
+            </Button>
+          </Link>
         </View>
       </CardContent>
     </Card>
@@ -168,24 +183,40 @@ function ServiceProviderCard({ provider }: Props) {
 export default function HomeServiceProvider({
   selectedService,
   searchQuery,
-}: { selectedService: string, searchQuery: string }) {
+  refreshKey,
+}: { selectedService: string, searchQuery: string, refreshKey?: number }) {
 
-  const [serviceProviders, setServiceProviders] = useState<ServiceProviderResponse[]>([]);
+  const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const fetchServiceProviders = async () => {
-    const serviceProviders = await getServiceProviders();
-    setServiceProviders(serviceProviders.output);
+    setLoading(true);
+    const result = await getServiceProviders(selectedService || undefined, searchQuery || undefined);
+    setServiceProviders(result.output);
+    setLoading(false);
   }
 
   useEffect(() => {
     fetchServiceProviders();
-  }, [])
+  }, [selectedService, searchQuery, refreshKey])
+
+  if (loading) {
+    return (
+      <View className="items-center py-12">
+        <Text className="text-muted-foreground text-lg">Loading providers...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerClassName="">
       {serviceProviders.length === 0 ? (
         <View className="items-center py-12">
-          <Text className="text-muted-foreground text-lg">No providers found</Text>
+          <Text className="text-muted-foreground text-lg">
+            {selectedService || searchQuery
+              ? "No providers found matching your criteria"
+              : "No providers found"}
+          </Text>
         </View>
       ) : (
         serviceProviders.map((provider) => (

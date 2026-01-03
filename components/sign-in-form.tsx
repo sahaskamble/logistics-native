@@ -17,6 +17,7 @@ import { Alert, Pressable, type TextInput, View } from 'react-native';
 import { Icon } from './ui/icon';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { Login } from '@/lib/actions/auth/login';
+import { router } from 'expo-router';
 
 export function SignInForm() {
   const passwordInputRef = React.useRef<TextInput>(null);
@@ -33,14 +34,39 @@ export function SignInForm() {
   }
 
   async function onSubmit() {
-    const response = await Login(UsernameOrEamil, password);
+    const response: any = await Login(UsernameOrEamil, password);
     if (response.success) {
       Alert.alert(
         "Login Successfull",
+        `User Logged In using ${response.output?.email}`,
+        [
+          {
+            text: "Ok",
+            style: "default",
+            // onPress: () => router.push('/(protected)/home'),
+          },
+        ],
+        {
+          cancelable: true,
+          onDismiss: () => console.log("Alert Dismissed So USer Logged IN"),
+        }
       )
+      router.push('/(protected)/home');
     } else if (response.success === false) {
       Alert.alert(
         "Login UnSuccessfull",
+        `User Login UnSuccessfull using ${response.output?.email}`,
+        [
+          {
+            text: "Ok",
+            style: "default",
+            onPress: () => console.log("Login UnSuccessfull"),
+          },
+        ],
+        {
+          cancelable: true,
+          onDismiss: () => console.log("Alert Dismissed But User Login UnSuccessfull")
+        }
       )
     }
   }

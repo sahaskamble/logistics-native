@@ -1,11 +1,15 @@
 import { cn } from '@/lib/utils';
 import { Platform, TextInput, type TextInputProps } from 'react-native';
 
+type InputProps = TextInputProps & {
+  placeholderClassName?: string;
+};
+
 function Input({
   className,
   placeholderClassName,
   ...props
-}: TextInputProps & React.RefAttributes<TextInput>) {
+}: InputProps & React.RefAttributes<TextInput>) {
   return (
     <TextInput
       className={cn(
@@ -25,6 +29,9 @@ function Input({
         }),
         className
       )}
+      {...(Platform.OS === 'web'
+        ? ({ placeholderClassName } as any)
+        : {})}
       {...props}
     />
   );

@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useRouter } from "expo-router";
 import { ScrollView, View, TouchableOpacity } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
-import { useRouter } from "expo-router";
 import { Container, Truck, Boxes, Warehouse, Package, ArrowRight } from "lucide-react-native";
 
 interface ServiceOption {
@@ -21,7 +20,7 @@ const serviceOptions: ServiceOption[] = [
     title: "CFS",
     description: "Container Freight Station services for cargo handling and storage",
     icon: Container,
-    route: "/(protected)/orders/cfs/new",
+    route: "/(protected)/orders/cfs",
     color: "bg-blue-500",
   },
   {
@@ -29,7 +28,7 @@ const serviceOptions: ServiceOption[] = [
     title: "Transport",
     description: "Transportation and logistics services for goods movement",
     icon: Truck,
-    route: "/(protected)/orders/transport/create",
+    route: "/(protected)/orders/transport",
     color: "bg-green-500",
   },
   {
@@ -37,7 +36,7 @@ const serviceOptions: ServiceOption[] = [
     title: "3PL",
     description: "Third-party logistics services for comprehensive supply chain management",
     icon: Boxes,
-    route: "/(protected)/orders/3pl/create",
+    route: "/(protected)/orders/3pl",
     color: "bg-purple-500",
   },
   {
@@ -45,7 +44,7 @@ const serviceOptions: ServiceOption[] = [
     title: "Warehouse",
     description: "Warehousing services for inventory management and storage",
     icon: Warehouse,
-    route: "/(protected)/orders/warehouse/create",
+    route: "/(protected)/orders/warehouse",
     color: "bg-orange-500",
   },
   {
@@ -53,17 +52,16 @@ const serviceOptions: ServiceOption[] = [
     title: "Custom",
     description: "Custom order packages tailored to your specific requirements",
     icon: Package,
-    route: "/(protected)/orders/custom/select",
+    route: "/(protected)/orders/custom",
     color: "bg-pink-500",
   },
 ];
 
-export default function OrderServiceSelectionPage() {
+export default function OrdersIndexPage() {
   const router = useRouter();
 
-  const handleServiceSelect = (service: string) => {
-    // Navigate to the service drawer
-    router.push(`${service}` as any);
+  const handleServiceSelect = (service: ServiceOption) => {
+    router.push(service.route as any);
   };
 
   return (
@@ -80,35 +78,22 @@ export default function OrderServiceSelectionPage() {
           {serviceOptions.map((service) => (
             <TouchableOpacity
               key={service.id}
-              onPress={() => handleServiceSelect(service.route)}
+              onPress={() => handleServiceSelect(service)}
               activeOpacity={0.7}
             >
-              <Card className="border-2 border-border hover:border-primary transition-colors">
+              <Card className="border-2 border-border">
                 <CardContent className="p-4">
                   <View className="flex-row items-center gap-4">
-                    {/* Icon */}
                     <View className={`${service.color} rounded-full p-4`}>
-                      <Icon
-                        as={service.icon}
-                        size={32}
-                        className="text-white"
-                      />
+                      <Icon as={service.icon} size={32} className="text-white" />
                     </View>
-
-                    {/* Content */}
                     <View className="flex-1 gap-1">
                       <CardTitle className="text-lg mb-1">{service.title}</CardTitle>
                       <Text className="text-sm text-muted-foreground">
                         {service.description}
                       </Text>
                     </View>
-
-                    {/* Arrow */}
-                    <Icon
-                      as={ArrowRight}
-                      size={24}
-                      className="text-muted-foreground"
-                    />
+                    <Icon as={ArrowRight} size={24} className="text-muted-foreground" />
                   </View>
                 </CardContent>
               </Card>
@@ -116,7 +101,6 @@ export default function OrderServiceSelectionPage() {
           ))}
         </View>
 
-        {/* Info Card */}
         <Card className="mt-4 bg-muted/50">
           <CardContent className="p-4">
             <Text className="text-sm text-muted-foreground text-center">

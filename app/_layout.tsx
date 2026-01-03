@@ -30,6 +30,7 @@ export default function RootLayout() {
     <ThemeProvider value={NAV_THEME[theme ?? 'light']}>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={SCREENOPTIONS}>
+        <Stack.Screen name="index" />
         <Stack.Protected guard={!isValid}>
           <Stack.Screen name='(auth)' />
         </Stack.Protected>
