@@ -1,5 +1,7 @@
 import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
+import { mergeFilters, type PbQueryOptions } from "@/lib/actions/pbOptions";
+import { createNotificationForCurrentUser } from "@/lib/actions/notifications/notification";
 
 type PbBaseRecord = {
   id: string;
@@ -15,10 +17,13 @@ export type CfsProvider = PbBaseRecord & {
 };
 
 export type UserContainer = PbBaseRecord & {
+  ownedBy?: string;
   containerNo?: string;
   size?: string;
-  status?: string;
-  ownedBy?: string;
+  status?: "Good" | "Empty" | "Loading" | "In Transit" | "Damaged" | "Other";
+  cargoType?: string;
+  files?: string[];
+  expand?: any;
 };
 
 export type CfsOrderCreateParams = {
@@ -28,14 +33,13 @@ export type CfsOrderCreateParams = {
   consigneeName?: string;
   chaName?: string;
   cfs?: string;
-  dpdType?: "DPD" | "Non-DPD";
   shipping_line?: string;
+  dpdType?: "DPD" | "Non-DPD";
   eta?: Date;
   deliveryType?: "Loaded" | "Destuffed";
   orderDescription?: string;
   containers?: string[];
-  files?: { uri: string; name: string; type: string } | null;
-  hblcopy?: { uri: string; name: string; type: string } | null;
+  files?: { uri: string; name: string; type: string }[] | null;
   confirmShippingLine?: { uri: string; name: string; type: string } | null;
 };
 
@@ -53,7 +57,7 @@ function toIsoStringOrUndefined(d?: Date) {
   return iso;
 }
 
-export async function listVerifiedCfsProviders(): Promise<{
+export async function listVerifiedCfsProviders(options?: PbQueryOptions): Promise<{
   success: boolean;
   message: string;
   output: CfsProvider[];
@@ -76,9 +80,10 @@ export async function listVerifiedCfsProviders(): Promise<{
         const providers = await pb
           .collection("service_provider")
           .getFullList<CfsProvider>({
-            filter: `verified=true && service~"${cfsServiceId}"`,
-            sort: "title",
-            expand: "service",
+            ...options,
+            filter: mergeFilters(`verified=true && service~"${cfsServiceId}"`, options?.filter),
+            sort: options?.sort || "title",
+            expand: options?.expand || "service",
           });
         return { success: true, message: "Fetched CFS providers.", output: providers };
       } catch (err: any) {
@@ -88,9 +93,10 @@ export async function listVerifiedCfsProviders(): Promise<{
     }
 
     const allVerified = await pb.collection("service_provider").getFullList<CfsProvider>({
-      filter: `verified=true`,
-      sort: "title",
-      expand: "service",
+      ...options,
+      filter: mergeFilters(`verified=true`, options?.filter),
+      sort: options?.sort || "title",
+      expand: options?.expand || "service",
     });
 
     const filtered = allVerified.filter((p) => {
@@ -108,7 +114,7 @@ export async function listVerifiedCfsProviders(): Promise<{
   }
 }
 
-export async function listContainersForCurrentUser(): Promise<{
+export async function listContainersForCurrentUser(options?: PbQueryOptions): Promise<{
   success: boolean;
   message: string;
   output: UserContainer[];
@@ -120,8 +126,10 @@ export async function listContainersForCurrentUser(): Promise<{
     }
 
     const containers = await pb.collection("containers").getFullList<UserContainer>({
-      filter: `ownedBy="${user.user.id}"`,
-      sort: "-created",
+      ...options,
+      filter: mergeFilters(`ownedBy="${user.user.id}"`, options?.filter),
+      sort: options?.sort || "-created",
+      expand: options?.expand,
     });
 
     return { success: true, message: "Fetched containers.", output: containers };
@@ -151,16 +159,8 @@ export async function createCfsOrder(params: CfsOrderCreateParams): Promise<{
       return { success: false, message: "Please select a CFS provider.", output: null };
     }
 
-    if (!params.dpdType) {
-      return { success: false, message: "Please select DPD type.", output: null };
-    }
-
     if (!params.deliveryType) {
       return { success: false, message: "Please select delivery type.", output: null };
-    }
-
-    if (!params.files) {
-      return { success: false, message: "MBL copy (files) is required.", output: null };
     }
 
     const fd = new FormData();
@@ -172,8 +172,11 @@ export async function createCfsOrder(params: CfsOrderCreateParams): Promise<{
     fd.append("consigneeName", (params.consigneeName || "").trim());
     fd.append("chaName", (params.chaName || "").trim());
     fd.append("cfs", params.cfs.trim());
-    fd.append("dpdType", params.dpdType);
     fd.append("shipping_line", (params.shipping_line || "").trim());
+
+    if (params.dpdType) {
+      fd.append("dpdType", params.dpdType);
+    }
 
     const eta = toIsoStringOrUndefined(params.eta);
     if (eta) fd.append("eta", eta);
@@ -193,17 +196,28 @@ export async function createCfsOrder(params: CfsOrderCreateParams): Promise<{
     fd.append("customer", user.user.id);
 
     // Files
-    fd.append("files", toPbFile(params.files));
-
-    if (params.hblcopy) {
-      fd.append("hblcopy", toPbFile(params.hblcopy));
-    }
+    (params.files || []).forEach((f) => {
+      if (!f) return;
+      fd.append("files", toPbFile(f));
+    });
 
     if (params.confirmShippingLine) {
       fd.append("confirmShippingLine", toPbFile(params.confirmShippingLine));
     }
 
     const created = await pb.collection("cfs_orders").create(fd as any);
+
+    // Best-effort: do not fail order creation if notification fails.
+    try {
+      await createNotificationForCurrentUser({
+        title: "CFS Order Created",
+        description: `Your CFS order #${(created as any)?.id?.slice?.(0, 8) || ""} has been created successfully.`,
+        type: "event",
+        ordersId: (created as any)?.id,
+      });
+    } catch (err) {
+      console.error("Error creating notification for CFS order", err);
+    }
 
     return {
       success: true,
@@ -214,10 +228,11 @@ export async function createCfsOrder(params: CfsOrderCreateParams): Promise<{
     console.error("Error creating CFS order", err);
 
     // PocketBase sometimes returns data.message or string
-    const message =
-      err?.data?.message ||
-      err?.message ||
-      "Failed to create CFS order. Please check inputs and try again.";
+    const status = err?.status;
+    const details = err?.data?.message || err?.message;
+    const message = status
+      ? `Failed to create CFS order (HTTP ${status}). ${details || ""}`.trim()
+      : details || "Failed to create CFS order. Please check inputs and try again.";
 
     return { success: false, message, output: null };
   }

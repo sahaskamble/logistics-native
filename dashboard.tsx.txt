@@ -1,0 +1,310 @@
+
+// import { useCallback, useEffect, useMemo, useState } from "react";
+// import { Alert, Pressable, RefreshControl, ScrollView, View } from "react-native";
+// import { Stack, useRouter } from "expo-router";
+// import { processColor } from "react-native";
+// import { BarChart, PieChart } from "react-native-charts-wrapper";
+//
+// import LoadingView from "@/components/LoadingView";
+// import OrderStats, { type OrderStatus } from "@/components/cfs/OrderStats";
+// import { Badge } from "@/components/ui/badge";
+// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+// import { Text } from "@/components/ui/text";
+// import { listCfsOrdersForCurrentUser, type CfsOrderRecord } from "@/lib/actions/cfs/fetch";
+//
+// function getStatusConfig(status?: CfsOrderRecord["status"]) {
+//   switch (status) {
+//     case "Pending":
+//       return { variant: "default" as const, bgColor: "bg-yellow-500" };
+//     case "Accepted":
+//       return { variant: "secondary" as const, bgColor: "bg-green-500" };
+//     case "In Progress":
+//       return { variant: "secondary" as const, bgColor: "bg-gray-400" };
+//     case "Rejected":
+//       return { variant: "destructive" as const, bgColor: "bg-red-500" };
+//     case "Completed":
+//       return { variant: "outline" as const, bgColor: "bg-blue-500" };
+//     default:
+//       return { variant: "outline" as const, bgColor: "bg-muted-background" };
+//   }
+// }
+//
+// function safeDate(iso?: string) {
+//   if (!iso) return null;
+//   const d = new Date(iso);
+//   if (Number.isNaN(d.getTime())) return null;
+//   return d;
+// }
+//
+// function formatDateShort(iso?: string) {
+//   const d = safeDate(iso);
+//   if (!d) return "";
+//   return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
+// }
+//
+// export default function DashboardPage() {
+//   const router = useRouter();
+//   const [loading, setLoading] = useState(true);
+//   const [refreshing, setRefreshing] = useState(false);
+//   const [orders, setOrders] = useState<CfsOrderRecord[]>([]);
+//   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | "All">("All");
+//
+//   const load = useCallback(async () => {
+//     const res = await listCfsOrdersForCurrentUser();
+//     if (!res.success) {
+//       Alert.alert("Error", res.message);
+//       setOrders([]);
+//       return;
+//     }
+//     setOrders(res.output || []);
+//   }, []);
+//
+//   useEffect(() => {
+//     let mounted = true;
+//     const run = async () => {
+//       setLoading(true);
+//       try {
+//         await load();
+//       } finally {
+//         if (mounted) setLoading(false);
+//       }
+//     };
+//     run();
+//     return () => {
+//       mounted = false;
+//     };
+//   }, [load]);
+//
+//   const onRefresh = useCallback(async () => {
+//     setRefreshing(true);
+//     try {
+//       await load();
+//     } finally {
+//       setRefreshing(false);
+//     }
+//   }, [load]);
+//
+//   const visibleOrders = useMemo(() => {
+//     if (selectedStatus === "All") return orders;
+//     return orders.filter((o) => o.status === selectedStatus);
+//   }, [orders, selectedStatus]);
+//
+//   const recentOrders = useMemo(() => {
+//     return [...orders]
+//       .sort((a, b) => {
+//         const da = safeDate(a.created)?.getTime() || 0;
+//         const db = safeDate(b.created)?.getTime() || 0;
+//         return db - da;
+//       })
+//       .slice(0, 5);
+//   }, [orders]);
+//
+//   const statusCounts = useMemo(() => {
+//     const counts: Record<string, number> = {
+//       Pending: 0,
+//       Accepted: 0,
+//       "In Progress": 0,
+//       Completed: 0,
+//       Rejected: 0,
+//     };
+//
+//     visibleOrders.forEach((o) => {
+//       const s = o.status || "";
+//       if (s in counts) counts[s] += 1;
+//     });
+//
+//     return counts;
+//   }, [visibleOrders]);
+//
+//   const pieData = useMemo(() => {
+//     const entries = [
+//       { label: "Pending", value: statusCounts["Pending"], color: processColor("#eab308") },
+//       { label: "Accepted", value: statusCounts["Accepted"], color: processColor("#22c55e") },
+//       { label: "In Progress", value: statusCounts["In Progress"], color: processColor("#9ca3af") },
+//       { label: "Completed", value: statusCounts["Completed"], color: processColor("#3b82f6") },
+//       { label: "Rejected", value: statusCounts["Rejected"], color: processColor("#ef4444") },
+//     ].filter((e) => e.value > 0);
+//
+//     return {
+//       dataSets: [
+//         {
+//           values: entries.map((e) => ({ value: e.value, label: e.label })),
+//           label: "",
+//           config: {
+//             colors: entries.map((e) => e.color),
+//             valueTextSize: 12,
+//             valueTextColor: processColor("#111827"),
+//             sliceSpace: 2,
+//             selectionShift: 6,
+//           },
+//         },
+//       ],
+//     };
+//   }, [statusCounts]);
+//
+//   const last7DaysBar = useMemo(() => {
+//     const now = new Date();
+//     const days = Array.from({ length: 7 }, (_, i) => {
+//       const d = new Date(now);
+//       d.setDate(now.getDate() - (6 - i));
+//       d.setHours(0, 0, 0, 0);
+//       return d;
+//     });
+//
+//     const buckets = days.map(() => 0);
+//     visibleOrders.forEach((o) => {
+//       const d = safeDate(o.created);
+//       if (!d) return;
+//       const dd = new Date(d);
+//       dd.setHours(0, 0, 0, 0);
+//       const idx = days.findIndex((x) => x.getTime() === dd.getTime());
+//       if (idx >= 0) buckets[idx] += 1;
+//     });
+//
+//     return {
+//       xLabels: days.map((d) => d.toLocaleDateString("en-US", { month: "short", day: "2-digit" })),
+//       data: {
+//         dataSets: [
+//           {
+//             values: buckets,
+//             label: "Orders",
+//             config: {
+//               color: processColor("#3b82f6"),
+//               valueTextColor: processColor("#111827"),
+//               valueTextSize: 10,
+//             },
+//           },
+//         ],
+//       },
+//     };
+//   }, [visibleOrders]);
+//
+//   if (loading) {
+//     return <LoadingView LoadingText="Loading Dashboard..." />;
+//   }
+//
+//   return (
+//     <>
+//       <Stack.Screen options={{ headerTitle: "Dashboard" }} />
+//
+//       <ScrollView
+//         className="flex-1 bg-background"
+//         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+//       >
+//         <View className="px-4 pt-4 gap-4">
+//           <Card>
+//             <CardHeader>
+//               <CardTitle>Overview</CardTitle>
+//             </CardHeader>
+//             <CardContent>
+//               <Text className="text-muted-foreground">Your CFS orders summary</Text>
+//             </CardContent>
+//           </Card>
+//         </View>
+//
+//         <OrderStats orders={orders} selectedStatus={selectedStatus} onStatusChange={setSelectedStatus} />
+//
+//         <View className="px-4 gap-4 pb-8">
+//           <Card>
+//             <CardHeader>
+//               <CardTitle>Status Distribution</CardTitle>
+//             </CardHeader>
+//             <CardContent>
+//               {pieData.dataSets?.[0]?.values?.length ? (
+//                 <View className="h-64">
+//                   <PieChart
+//                     style={{ flex: 1 }}
+//                     data={pieData as any}
+//                     legend={{
+//                       enabled: true,
+//                       textColor: processColor("#111827"),
+//                       textSize: 12,
+//                       form: "CIRCLE",
+//                     } as any}
+//                     chartDescription={{ text: "" } as any}
+//                     rotationEnabled
+//                     usePercentValues
+//                     holeRadius={45}
+//                     transparentCircleRadius={50}
+//                     entryLabelColor={processColor("#111827")}
+//                     entryLabelTextSize={11}
+//                   />
+//                 </View>
+//               ) : (
+//                 <Text className="text-muted-foreground">No data for selected filter.</Text>
+//               )}
+//             </CardContent>
+//           </Card>
+//
+//           <Card>
+//             <CardHeader>
+//               <CardTitle>Orders Created (Last 7 days)</CardTitle>
+//             </CardHeader>
+//             <CardContent>
+//               <View className="h-64">
+//                 <BarChart
+//                   style={{ flex: 1 }}
+//                   data={last7DaysBar.data as any}
+//                   xAxis={{
+//                     valueFormatter: last7DaysBar.xLabels,
+//                     granularityEnabled: true,
+//                     granularity: 1,
+//                     position: "BOTTOM",
+//                     textColor: processColor("#111827"),
+//                     textSize: 10,
+//                     drawGridLines: false,
+//                   } as any}
+//                   yAxis={{
+//                     left: { textColor: processColor("#111827"), axisMinimum: 0 } as any,
+//                     right: { enabled: false } as any,
+//                   } as any}
+//                   legend={{ enabled: false } as any}
+//                   chartDescription={{ text: "" } as any}
+//                   drawValueAboveBar
+//                   pinchZoom={false}
+//                   doubleTapToZoomEnabled={false}
+//                 />
+//               </View>
+//             </CardContent>
+//           </Card>
+//
+//           <Card>
+//             <CardHeader>
+//               <CardTitle>Recent Orders</CardTitle>
+//             </CardHeader>
+//             <CardContent className="gap-3">
+//               {recentOrders.length === 0 ? (
+//                 <Text className="text-muted-foreground">No orders yet.</Text>
+//               ) : (
+//                 recentOrders.map((o) => (
+//                   <Pressable
+//                     key={o.id}
+//                     onPress={() =>
+//                       router.push({
+//                         pathname: "/(protected)/cfs/order/view/[orderId]" as any,
+//                         params: { orderId: o.id },
+//                       })
+//                     }
+//                   >
+//                     <View className="flex-row items-center justify-between">
+//                       <View className="flex-1 pr-3">
+//                         <Text className="font-semibold">Order #{o.id.slice(0, 8)}</Text>
+//                         <Text className="text-sm text-muted-foreground">{formatDateShort(o.created)}</Text>
+//                       </View>
+//                       <Badge
+//                         variant={getStatusConfig(o.status).variant}
+//                         className={getStatusConfig(o.status).bgColor}
+//                       >
+//                         <Text className="text-xs text-white">{o.status || "Unknown"}</Text>
+//                       </Badge>
+//                     </View>
+//                   </Pressable>
+//                 ))
+//               )}
+//             </CardContent>
+//           </Card>
+//         </View>
+//       </ScrollView>
+//     </>
+//   );
+// }

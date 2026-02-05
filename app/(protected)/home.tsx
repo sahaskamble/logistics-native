@@ -1,12 +1,9 @@
 import HomeServiceProvider from "@/components/home/ServiceProviders";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Boxes, Container, LucideIcon, Package, Search, Truck, Warehouse } from "lucide-react-native";
 import { useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View, RefreshControl } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View, RefreshControl, Pressable } from "react-native";
 
 interface Services {
   title: string,
@@ -36,10 +33,6 @@ export default function HomePage() {
       title: "Warehouse",
       icon: Warehouse,
     },
-    {
-      title: "Custom Packages",
-      icon: Package,
-    }
   ]
 
   const handleServicePress = (service: Services, index: number) => {
@@ -68,44 +61,29 @@ export default function HomePage() {
       className="px-4 pt-4"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Horizontally Scrollable Services */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={true}
-        contentContainerClassName="px-0 pb-4 gap-3"
-        className="w-full"
-      >
-        {services.map((service, index) => {
-          return (
-            <TouchableOpacity
-              key={index}
-              onPress={() => handleServicePress(service, index)}
-              className={`w-auto flex-row items-center gap-2 px-4 py-3 rounded-lg border border-border transition-all ${activeIndex !== null && index === activeIndex
-                ? 'bg-primary'
-                : 'bg-card'
-                }`}
-              activeOpacity={0.7}
-            >
-              <Icon
-                as={service.icon}
-                size={24}
-                className={activeIndex !== null && index === activeIndex ? 'text-primary-foreground' : 'text-foreground'}
-              />
-              <Text
-                className={`text-base font-medium ${activeIndex !== null && index === activeIndex ? 'text-primary-foreground' : 'text-foreground'
-                  }`}
-              >
-                {service.title}
-              </Text>
-            </TouchableOpacity>)
-        })}
-      </ScrollView>
+      {/* Services Tabs */}
+      <View className="flex-row justify-around py-3 px-2 bg-background shadow-md border border-gray-200 mb-5 rounded-lg">
+        {services.map((service, index) => (
+          <Pressable
+            key={index}
+            className="items-center gap-1"
+            onPress={() => handleServicePress(service, index)}
+          >
+            <Icon
+              as={service.icon}
+              size={25}
+              className={activeIndex !== null && index === activeIndex ? "text-primary" : ""}
+            />
+            <Text className={activeIndex !== null && index === activeIndex ? "text-primary" : "text-foreground"}>{service.title}</Text>
+          </Pressable>
+        ))}
+      </View>
 
       {/* Search Services Providers */}
       <View className="flex-row gap-1 w-full mb-4">
         <Input
           placeholder="Search Providers"
-          className="flex-1 h-12 sm:h-auto text-xl sm:text-lg"
+          className="flex-1 h-10 sm:h-auto text-base sm:text-lg"
           value={searchQuery}
           onChangeText={setSearchQuery}
         />

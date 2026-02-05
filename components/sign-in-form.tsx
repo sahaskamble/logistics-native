@@ -13,17 +13,17 @@ import { Separator } from '@/components/ui/separator';
 import { Text } from '@/components/ui/text';
 import * as React from 'react';
 import { useState } from 'react';
-import { Alert, Pressable, type TextInput, View } from 'react-native';
+import { Pressable, type TextInput, View } from 'react-native';
 import { Icon } from './ui/icon';
 import { Eye, EyeOff } from 'lucide-react-native';
-import { Login } from '@/lib/actions/auth/login';
-import { router } from 'expo-router';
+import { useRootAuth } from '@/context/RootAuthCtx';
 
 export function SignInForm() {
   const passwordInputRef = React.useRef<TextInput>(null);
   const [UsernameOrEamil, setUsernameOrEamil] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const { Login } = useRootAuth();
 
   function onEmailSubmit(e: any) {
     setUsernameOrEamil(e);
@@ -34,41 +34,7 @@ export function SignInForm() {
   }
 
   async function onSubmit() {
-    const response: any = await Login(UsernameOrEamil, password);
-    if (response.success) {
-      Alert.alert(
-        "Login Successfull",
-        `User Logged In using ${response.output?.email}`,
-        [
-          {
-            text: "Ok",
-            style: "default",
-            // onPress: () => router.push('/(protected)/home'),
-          },
-        ],
-        {
-          cancelable: true,
-          onDismiss: () => console.log("Alert Dismissed So USer Logged IN"),
-        }
-      )
-      router.push('/(protected)/home');
-    } else if (response.success === false) {
-      Alert.alert(
-        "Login UnSuccessfull",
-        `User Login UnSuccessfull using ${response.output?.email}`,
-        [
-          {
-            text: "Ok",
-            style: "default",
-            onPress: () => console.log("Login UnSuccessfull"),
-          },
-        ],
-        {
-          cancelable: true,
-          onDismiss: () => console.log("Alert Dismissed But User Login UnSuccessfull")
-        }
-      )
-    }
+    await Login(UsernameOrEamil, password);
   }
 
   return (

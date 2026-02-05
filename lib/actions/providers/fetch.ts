@@ -1,4 +1,5 @@
 import pb from "@/lib/pocketbase/pb";
+import { mergeFilters, type PbQueryOptions } from "@/lib/actions/pbOptions";
 
 export type ServiceProvider = {
   id: string;
@@ -16,32 +17,39 @@ export type ServiceProvider = {
   expand?: any;
 };
 
-export async function getServiceProviders(
-  serviceTitle?: string,
-  searchQuery?: string
-): Promise<{ success: Boolean, message: string, output: ServiceProvider[] }> {
+export async function getServiceProviders(params?: {
+  serviceTitle?: string;
+  searchQuery?: string;
+  options?: PbQueryOptions;
+}): Promise<{ success: boolean; message: string; output: ServiceProvider[] }> {
   try {
     const isUserValid = pb.authStore.isValid && pb.authStore.record?.role === "Customer";
     if (isUserValid) {
+      const options = params?.options;
+      const serviceTitle = params?.serviceTitle;
+      const searchQuery = params?.searchQuery;
+
       // Build filter - always include verified=true
-      let filter = "verified=true";
+      let baseFilter = "verified=true";
 
       // If search query is provided, add search filter
       if (searchQuery && searchQuery.trim()) {
-        const searchTerm = searchQuery.trim();
-        filter += ` && (title~"${searchTerm}" || description~"${searchTerm}")`;
+        const searchTerm = searchQuery.trim().replace(/\"/g, "\\\"");
+        baseFilter += ` && (title~"${searchTerm}" || description~"${searchTerm}")`;
       }
 
       // Fetch all verified providers with expanded service relation
       const response = await pb.collection("service_provider").getFullList<ServiceProvider>({
-        filter: filter,
-        sort: "-created",
-        expand: "service,author",
+        ...options,
+        filter: mergeFilters(baseFilter, options?.filter),
+        sort: options?.sort || "-created",
+        expand: options?.expand || "service,author",
       });
 
       // Filter by service title if provided (using expanded relation data)
       let filteredProviders = response;
       if (serviceTitle && serviceTitle.trim()) {
+        const wanted = serviceTitle.trim().toLowerCase();
         filteredProviders = response.filter((provider) => {
           // Check if provider has expanded service relation
           const expandedServices = (provider as any).expand?.service;
@@ -51,9 +59,7 @@ export async function getServiceProviders(
           const services = Array.isArray(expandedServices) ? expandedServices : [expandedServices];
 
           // Check if any service has matching title
-          return services.some((service: any) =>
-            service?.title?.toLowerCase() === serviceTitle.trim().toLowerCase()
-          );
+          return services.some((service: any) => (service?.title || "").toString().toLowerCase() === wanted);
         });
       }
 

@@ -191,7 +191,10 @@ export default function HomeServiceProvider({
 
   const fetchServiceProviders = async () => {
     setLoading(true);
-    const result = await getServiceProviders(selectedService || undefined, searchQuery || undefined);
+    const result = await getServiceProviders({
+      serviceTitle: selectedService || undefined,
+      searchQuery: searchQuery || undefined,
+    });
     setServiceProviders(result.output);
     setLoading(false);
   }

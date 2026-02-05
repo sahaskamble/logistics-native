@@ -21,7 +21,7 @@ const serviceOptions: ServiceOption[] = [
     title: "CFS",
     description: "Container Freight Station services for cargo handling and storage",
     icon: Container,
-    route: "/(protected)/orders/cfs/new",
+    route: "/(protected)/cfs/order/create",
     color: "bg-blue-500",
   },
   {
@@ -120,7 +120,7 @@ export default function OrderServiceSelectionPage() {
         <Card className="mt-4 bg-muted/50">
           <CardContent className="p-4">
             <Text className="text-sm text-muted-foreground text-center">
-              Choose the service type that best matches your logistics needs. 
+              Choose the service type that best matches your logistics needs.
               You can create multiple orders for different services.
             </Text>
           </CardContent>

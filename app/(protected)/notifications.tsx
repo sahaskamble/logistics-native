@@ -3,55 +3,25 @@ import { ScrollView, View, RefreshControl, TouchableOpacity } from "react-native
 import { Text } from "@/components/ui/text";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import pb from "@/lib/pocketbase/pb";
-import { getCurrentUser } from "@/lib/actions/users";
 import LoadingView from "@/components/LoadingView";
 import { Bell, BellOff } from "lucide-react-native";
 import { Icon } from "@/components/ui/icon";
-
-type Notification = {
-  id: string;
-  title?: string;
-  description?: string;
-  type?: string;
-  status?: string;
-  isRead?: boolean;
-  created?: string;
-};
+import { listNotificationsForCurrentUser, markNotificationAsRead, type NotificationRecord } from "@/lib/actions/notifications/notification";
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchNotifications = async () => {
     try {
-      const user = getCurrentUser();
-      if (!user.isValid || !user.user?.id) {
-        setLoading(false);
-        return;
+      const res = await listNotificationsForCurrentUser();
+      if (!res.success) {
+        console.error("Error fetching notifications:", res.message);
+        setNotifications([]);
+      } else {
+        setNotifications(res.output || []);
       }
-
-      // Filter by user if field exists, otherwise use createdFor
-      let filter = `createdFor="Customer" && status="Active"`;
-
-      // Try to use user field if it exists
-      try {
-        const test = await pb.collection("notification").getList(1, 10000000, {
-          filter: `user="${user.user.id}"`,
-        });
-        filter = `user="${user.user.id}" && status="Active"`;
-      } catch {
-        // Use createdFor as fallback
-        filter = `createdFor="Customer" && status="Active"`;
-      }
-
-      const response = await pb.collection("notification").getFullList<Notification>({
-        filter: filter,
-        sort: "-created",
-      });
-
-      setNotifications(response);
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
     } finally {
@@ -66,9 +36,11 @@ export default function NotificationsPage() {
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {
-      await pb.collection("notification").update(notificationId, {
-        isRead: true,
-      });
+      const res = await markNotificationAsRead(notificationId);
+      if (!res.success) {
+        console.error("Error marking notification as read:", res.message);
+        return;
+      }
 
       // Update local state
       setNotifications((prev) =>
@@ -104,7 +76,6 @@ export default function NotificationsPage() {
       <View className="p-4 gap-4">
         {/* Header Stats */}
         <View className="flex-row items-center justify-between mb-2">
-          <Text className="text-2xl font-semibold">Notifications</Text>
           {unreadCount > 0 && (
             <Badge variant="destructive" className="px-3 py-1">
               <Text className="text-white font-semibold">{unreadCount} Unread</Text>

@@ -1,5 +1,6 @@
 import pb from "@/lib/pocketbase/pb";
 import * as webBrowser from "expo-web-browser";
+import { RecordAuthResponse } from "pocketbase";
 import { Platform } from "react-native";
 import EventSource from "react-native-sse";
 
@@ -8,10 +9,15 @@ global.EventSource = EventSource;
 
 webBrowser.maybeCompleteAuthSession();
 
-export async function Login(UsernameOrEmail: string, password: string) {
+export type ResponseType = {
+  success: boolean;
+  output: RecordAuthResponse | RecordAuthResponse[];
+}
+
+export async function PasswordLogin(UsernameOrEmail: string, password: string) {
   try {
     const identity = UsernameOrEmail;
-    const response = await pb.collection('users').authWithPassword(identity, password);
+    const response: RecordAuthResponse = await pb.collection('users').authWithPassword(identity, password);
     return {
       success: true,
       output: response,
@@ -20,14 +26,14 @@ export async function Login(UsernameOrEmail: string, password: string) {
     console.error("Erron Login UnSuccessfull", err);
     return {
       success: false,
-      output: err,
+      output: [],
     };
   }
 }
 
 export async function GoogleLogin() {
   try {
-    const response = await pb.collection('users').authWithOAuth2({
+    const response: RecordAuthResponse = await pb.collection('users').authWithOAuth2({
       provider: 'google',
       urlCallback: (url) => {
         webBrowser.openAuthSessionAsync(url, "linkmylogistics://", {
@@ -57,12 +63,12 @@ export async function GoogleLogin() {
     console.error("Error Google Login UnSuccessfull", err);
     return {
       success: false,
-      output: err,
+      output: [],
     }
   }
 }
 
-export function Logout() {
+export function PbLogout() {
   try {
     pb.authStore.clear();
     return {
@@ -73,7 +79,7 @@ export function Logout() {
     console.error("Erron Login UnSuccessfull", err);
     return {
       success: false,
-      output: err,
+      output: [],
     };
   }
 }

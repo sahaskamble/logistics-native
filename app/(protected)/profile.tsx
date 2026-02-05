@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ScrollView, View, Image, Alert, TouchableOpacity, Platform, RefreshControl } from "react-native";
+import { ScrollView, View, Image, Alert, TouchableOpacity, Platform, RefreshControl, InteractionManager } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,8 @@ import LoadingView from "@/components/LoadingView";
 import { Icon } from "@/components/ui/icon";
 import { Camera, Edit2, Save, X, Mail, Phone, MapPin, Building, FileText, User } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
-import { Logout } from "@/lib/actions/auth/login";
 import { router } from "expo-router";
+import { useRootAuth } from "@/context/RootAuthCtx";
 
 type UserRecord = {
   id: string;
@@ -43,6 +43,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [user, setUser] = useState<UserRecord | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileRecord | null>(null);
+  const { Logout } = useRootAuth();
   const [formData, setFormData] = useState({
     // Users collection fields
     firstname: "",
@@ -107,13 +108,13 @@ export default function ProfilePage() {
 
       setLoading(false);
       setRefreshing(false);
-      } catch (error: any) {
-        console.error("Error fetching profile data:", error);
-        Alert.alert("Error", "Failed to load profile data.");
-        setLoading(false);
-        setRefreshing(false);
-      }
-    };
+    } catch (error: any) {
+      console.error("Error fetching profile data:", error);
+      Alert.alert("Error", "Failed to load profile data.");
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -219,24 +220,6 @@ export default function ProfilePage() {
       Alert.alert("Error", error.message || "Failed to update profile.");
       setSaving(false);
     }
-  };
-
-  const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: () => {
-          const { success } = Logout();
-          if (success) {
-            router.push('/login');
-          } else if (success === false) {
-            console.error("Logout Unsuccessfull !!!");
-          }
-        },
-      },
-    ]);
   };
 
   if (loading) {
@@ -494,7 +477,7 @@ export default function ProfilePage() {
         <Button
           variant="destructive"
           className="mb-8"
-          onPress={handleLogout}
+          onPress={Logout}
         >
           <Text className="text-destructive-foreground">Logout</Text>
         </Button>
