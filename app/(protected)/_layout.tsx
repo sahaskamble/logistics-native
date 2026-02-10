@@ -38,7 +38,9 @@ const DrawerControlContext = createContext<{ openDrawer: () => void }>({ openDra
 export function useDrawerControl() {
   return useContext(DrawerControlContext);
 }
+import pb from "@/lib/pocketbase/pb";
 import { getUnreadNotificationsCountForCurrentUser } from "@/lib/actions/notifications/notification";
+import { preload as preloadNotifications } from "@/lib/notifications/notificationCache";
 import {
   Accordion,
   AccordionContent,
@@ -77,14 +79,9 @@ function NotificationIcon() {
   const fetchUnreadCount = useCallback(async () => {
     try {
       const res = await getUnreadNotificationsCountForCurrentUser();
-      if (!res.success) {
-        console.error("Error fetching unread notifications:", res.message);
-        setUnreadCount(0);
-        return;
-      }
-      setUnreadCount(res.output ?? 0);
-    } catch (error) {
-      console.error("Error fetching unread notifications:", error);
+      setUnreadCount(res.success ? (res.output ?? 0) : 0);
+    } catch {
+      setUnreadCount(0);
     }
   }, []);
 
@@ -93,9 +90,19 @@ function NotificationIcon() {
     fetchUnreadCount();
   }, [pathname, fetchUnreadCount]);
 
-  // Also poll periodically in case of real-time updates from elsewhere
+  // Realtime: refetch count when any notification changes
   useEffect(() => {
-    const interval = setInterval(fetchUnreadCount, 30000);
+    pb.collection("notification").subscribe("*", () => {
+      fetchUnreadCount();
+    });
+    return () => {
+      pb.collection("notification").unsubscribe("*");
+    };
+  }, [fetchUnreadCount]);
+
+  // Fallback poll every 60s in case realtime misses events
+  useEffect(() => {
+    const interval = setInterval(fetchUnreadCount, 60000);
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);
 
@@ -121,6 +128,11 @@ function NotificationIcon() {
 export default function ProtectedLayout() {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Preload notifications so the notifications tab opens instantly
+  useEffect(() => {
+    void preloadNotifications();
+  }, []);
 
   type DrawerLeafItem = { label: string; route: string; icon: any };
   type DrawerGroupItem = { label: string; icon: any; items: DrawerLeafItem[] };

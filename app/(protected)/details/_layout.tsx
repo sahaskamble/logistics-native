@@ -7,7 +7,12 @@ export default function DetailsLayout() {
         headerShown: false,
       }}
     >
-      <Stack.Screen name="[providerId]" />
+      <Stack.Screen
+        name="[providerId]"
+        options={{
+          gestureEnabled: false,
+        }}
+      />
     </Stack>
   );
 }

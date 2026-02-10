@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ScrollView, View, ActivityIndicator, Image, Dimensions } from "react-native";
+import { ScrollView, View, ActivityIndicator, Image, Dimensions, BackHandler } from "react-native";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
@@ -60,9 +60,12 @@ export default function DetailsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
     setDetails(null);
+    setError(null);
+    setLoading(true);
+  }, [providerId])
+
+  useEffect(() => {
 
     const fetchDetails = async () => {
       console.log(
@@ -101,10 +104,24 @@ export default function DetailsPage() {
       }
     };
 
+    // Fetching Details
     fetchDetails();
   }, [providerId]);
 
-  if (loading || details?.id !== providerId) {
+  useEffect(() => {
+    const onBackPress = () => {
+      router.replace('/home');
+      return true;
+    };
+
+    // To get the back functionality in gesture or back button press
+    const backButtonSubscription = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+
+    // removing any resedue subscription
+    return () => backButtonSubscription.remove();
+  }, [])
+
+  if (!details || loading || details?.id !== providerId) {
     return (
       <LoadingView LoadingText="Loading provider details..." />
     );
@@ -262,179 +279,6 @@ export default function DetailsPage() {
               </View>
             </Card>
           )}
-
-          {/* Pricing & Rates */}
-          {(
-            details.tariffRates !== undefined ||
-            details.freeDays !== undefined ||
-            details.monthlyDues !== undefined ||
-            details.DocumentationCharges !== undefined ||
-            details.InsuranceCharges !== undefined
-          ) && (
-              <Card className="p-4">
-                <Text className="text-lg font-semibold mb-4">Pricing & Rates</Text>
-                <View className="gap-4">
-                  {details.tariffRates !== undefined && (
-                    <View className="flex-row items-center gap-3">
-                      <Icon as={DollarSign} size={20} className="text-muted-foreground" />
-                      <View className="flex-1">
-                        <Text className="text-sm text-muted-foreground">Tariff Rates</Text>
-                        <Text className="text-base font-medium">₹{details.tariffRates.toLocaleString()}</Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {details.freeDays !== undefined && (
-                    <View className="flex-row items-center gap-3">
-                      <Icon as={Clock} size={20} className="text-muted-foreground" />
-                      <View className="flex-1">
-                        <Text className="text-sm text-muted-foreground">Free Days</Text>
-                        <Text className="text-base font-medium">{details.freeDays} days</Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {details.monthlyDues !== undefined && (
-                    <View className="flex-row items-center gap-3">
-                      <Icon as={DollarSign} size={20} className="text-muted-foreground" />
-                      <View className="flex-1">
-                        <Text className="text-sm text-muted-foreground">Monthly Dues</Text>
-                        <Text className="text-base font-medium">₹{details.monthlyDues.toLocaleString()}</Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {details.DocumentationCharges !== undefined && (
-                    <View className="flex-row items-center gap-3">
-                      <Icon as={FileText} size={20} className="text-muted-foreground" />
-                      <View className="flex-1">
-                        <Text className="text-sm text-muted-foreground">Documentation Charges</Text>
-                        <Text className="text-base font-medium">₹{details.DocumentationCharges.toLocaleString()}</Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {details.InsuranceCharges !== undefined && (
-                    <View className="flex-row items-center gap-3">
-                      <Icon as={FileText} size={20} className="text-muted-foreground" />
-                      <View className="flex-1">
-                        <Text className="text-sm text-muted-foreground">Insurance Charges</Text>
-                        <Text className="text-base font-medium">₹{details.InsuranceCharges.toLocaleString()}</Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
-              </Card>
-            )}
-
-          {/* Vehicle Information */}
-          {(
-            details.NoOfVehicles !== undefined ||
-            (Array.isArray(details.TypesOfVehicles) ? details.TypesOfVehicles.length > 0 : !!details.TypesOfVehicles)
-          ) && (
-              <Card className="p-4">
-                <Text className="text-lg font-semibold mb-4">Vehicle Information</Text>
-                <View className="gap-4">
-                  {details.NoOfVehicles !== undefined && (
-                    <View className="flex-row items-center gap-3">
-                      <Icon as={Car} size={20} className="text-muted-foreground" />
-                      <View className="flex-1">
-                        <Text className="text-sm text-muted-foreground">Number of Vehicles</Text>
-                        <Text className="text-base font-medium">{details.NoOfVehicles}</Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {details.TypesOfVehicles ? (
-                    <View className="flex-1">
-                      <Text className="text-sm text-muted-foreground mb-2">Types of Vehicles</Text>
-                      {Array.isArray(details.TypesOfVehicles) ? (
-                        <View className="flex-row flex-wrap gap-2">
-                          {details.TypesOfVehicles.map((type: string, index: number) => {
-                            return (
-                              <Badge key={index} variant="secondary" className="px-3 py-1">
-                                <Text>{String(type)}</Text>
-                              </Badge>
-                            );
-                          })}
-                        </View>
-                      ) : (
-                        <Text className="text-base font-medium">{JSON.stringify(details.TypesOfVehicles)}</Text>
-                      )}
-                    </View>
-                  ) : null}
-                </View>
-              </Card>
-            )}
-
-          {/* Additional Information */}
-          <Card className="p-4">
-            <Text className="text-lg font-semibold mb-4">Additional Information</Text>
-            <View className="gap-4">
-              {details.bonded !== undefined && (
-                <View className="flex-row items-center gap-3">
-                  <Icon as={CheckCircle2} size={20} className="text-muted-foreground" />
-                  <View className="flex-1">
-                    <Text className="text-sm text-muted-foreground">Bonded</Text>
-                    <Text className="text-base font-medium">{details.bonded ? "Yes" : "No"}</Text>
-                  </View>
-                </View>
-              )}
-
-              {details.general !== undefined && (
-                <View className="flex-row items-center gap-3">
-                  <Icon as={Building2} size={20} className="text-muted-foreground" />
-                  <View className="flex-1">
-                    <Text className="text-sm text-muted-foreground">General</Text>
-                    <Text className="text-base font-medium">{details.general ? "Yes" : "No"}</Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          </Card>
-
-
-          {/* System Information */}
-          {(details.created || details.updated) && (
-            <Card className="p-4">
-              <Text className="text-lg font-semibold mb-4">System Information</Text>
-              <View className="gap-4">
-                {details.created && (
-                  <View className="flex-row items-center gap-3">
-                    <Icon as={Calendar} size={20} className="text-muted-foreground" />
-                    <View className="flex-1">
-                      <Text className="text-sm text-muted-foreground">Created At</Text>
-                      <Text className="text-base font-medium">
-                        {new Date(details.created).toLocaleString()}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {details.updated && (
-                  <View className="flex-row items-center gap-3">
-                    <Icon as={Calendar} size={20} className="text-muted-foreground" />
-                    <View className="flex-1">
-                      <Text className="text-sm text-muted-foreground">Last Updated</Text>
-                      <Text className="text-base font-medium">
-                        {new Date(details.updated).toLocaleString()}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-            </Card>
-          )}
-
-          {/* Action Buttons */}
-          <View className="gap-2">
-            <Button className="w-full">
-              <Text>Edit Details</Text>
-            </Button>
-            <Button variant="outline" className="w-full">
-              <Text>Download</Text>
-            </Button>
-          </View>
         </Fragment>
       </View>
     </ScrollView>

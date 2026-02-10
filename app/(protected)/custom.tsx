@@ -83,14 +83,14 @@ export default function OrderServiceSelectionPage() {
               onPress={() => handleServiceSelect(service.route)}
               activeOpacity={0.7}
             >
-              <Card className="border-2 border-border hover:border-primary transition-colors p-1">
+              <Card className="border-2 border-border hover:border-primary transition-colors py-2">
                 <CardContent className="px-4">
                   <View className="flex-row items-center gap-4">
                     {/* Icon */}
-                    <View className={`${service.color} rounded-full p-4`}>
+                    <View className={`${service.color} rounded-full p-3`}>
                       <Icon
                         as={service.icon}
-                        size={32}
+                        size={30}
                         className="text-white"
                       />
                     </View>
@@ -98,9 +98,6 @@ export default function OrderServiceSelectionPage() {
                     {/* Content */}
                     <View className="flex-1 gap-1">
                       <CardTitle className="text-lg mb-1">{service.title}</CardTitle>
-                      <Text className="text-sm text-muted-foreground">
-                        {service.description}
-                      </Text>
                     </View>
 
                     {/* Arrow */}
