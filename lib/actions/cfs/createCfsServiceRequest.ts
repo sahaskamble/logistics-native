@@ -1,5 +1,6 @@
 import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
+import { createNotificationForCurrentUser } from "@/lib/actions/notifications/notification";
 
 type PbBaseRecord = {
   id: string;
@@ -96,6 +97,17 @@ export async function createCfsServiceRequest(params: {
       customerRemarks: params.customerRemarks?.trim() || undefined,
       status: "Pending",
     });
+
+    try {
+      await createNotificationForCurrentUser({
+        title: "Service Request Created",
+        description: `Your ${params.serviceTypeTitle} request has been created successfully.`,
+        type: "event",
+        ordersId: orderId,
+      });
+    } catch (err) {
+      console.error("Error creating notification for CFS service request", err);
+    }
 
     return { success: true, message: "CFS service request created successfully.", output: created };
   } catch (err: any) {

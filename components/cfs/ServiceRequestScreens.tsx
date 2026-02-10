@@ -93,17 +93,19 @@ function isImageFile(filename?: string) {
   return [".jpg", ".jpeg", ".png", ".gif", ".webp"].some((ext) => lower.endsWith(ext));
 }
 
+export type ServiceRequestListScreenProps = {
+  title: string;
+  basePath: string;
+  listRequests: (options?: any) => Promise<{ success: boolean; message: string; output: CfsServiceRequestRecord[] }>;
+  deleteRequest?: (requestId: string) => Promise<{ success: boolean; message: string }>;
+};
+
 export function ServiceRequestListScreen({
   title,
   basePath,
   listRequests,
   deleteRequest,
-}: {
-  title: string;
-  basePath: string;
-  listRequests: (options?: any) => Promise<{ success: boolean; message: string; output: CfsServiceRequestRecord[] }>;
-  deleteRequest?: (requestId: string) => Promise<{ success: boolean; message: string }>;
-}) {
+}: ServiceRequestListScreenProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -303,15 +305,20 @@ export function ServiceRequestListScreen({
   );
 }
 
+export type ServiceRequestCreateScreenProps = {
+  title: string;
+  basePath: string;
+  createRequest: (params: { orderId: string; customerRemarks?: string; files?: PickedFile[] | null }) => Promise<{ success: boolean; message: string }>;
+  /** Optional: use this to load orders for the dropdown (e.g. warehouse). Defaults to CFS orders. */
+  listOrders?: () => Promise<{ success: boolean; message?: string; output: CfsOrder[] }>;
+};
+
 export function ServiceRequestCreateScreen({
   title,
   basePath,
   createRequest,
-}: {
-  title: string;
-  basePath: string;
-  createRequest: (params: { orderId: string; customerRemarks?: string; files?: PickedFile[] | null }) => Promise<{ success: boolean; message: string }>;
-}) {
+  listOrders: listOrdersProp,
+}: ServiceRequestCreateScreenProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -321,6 +328,8 @@ export function ServiceRequestCreateScreen({
   const [customerRemarks, setCustomerRemarks] = useState<string>("");
   const [files, setFiles] = useState<PickedFile[]>([]);
 
+  const listOrders = listOrdersProp ?? (() => listCfsOrdersForCurrentUser({ sort: "-created" }));
+
   const orderOptions: Option[] = useMemo(() => orders.map((o) => ({ value: o.id, label: getOrderLabel(o) })), [orders]);
 
   const selectedOrderOption = useMemo(() => orderOptions.find((o) => (o?.value || "") === selectedOrderId), [orderOptions, selectedOrderId]);
@@ -328,19 +337,19 @@ export function ServiceRequestCreateScreen({
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const res = await listCfsOrdersForCurrentUser({ sort: "-created" });
+      const res = await listOrders();
       if (!res.success) {
-        Alert.alert("Error", res.message);
+        Alert.alert("Error", res.message || "Failed to load orders");
         setOrders([]);
         setSelectedOrderId("");
       } else {
-        setOrders(res.output);
-        setSelectedOrderId((prev) => prev || res.output[0]?.id || "");
+        setOrders(res.output || []);
+        setSelectedOrderId((prev) => prev || (res.output || [])[0]?.id || "");
       }
       setLoading(false);
     };
     load();
-  }, []);
+  }, [listOrders]);
 
   const pickFiles = async () => {
     try {

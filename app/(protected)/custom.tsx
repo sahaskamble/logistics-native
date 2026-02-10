@@ -83,8 +83,8 @@ export default function OrderServiceSelectionPage() {
               onPress={() => handleServiceSelect(service.route)}
               activeOpacity={0.7}
             >
-              <Card className="border-2 border-border hover:border-primary transition-colors">
-                <CardContent className="p-4">
+              <Card className="border-2 border-border hover:border-primary transition-colors p-1">
+                <CardContent className="px-4">
                   <View className="flex-row items-center gap-4">
                     {/* Icon */}
                     <View className={`${service.color} rounded-full p-4`}>

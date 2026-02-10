@@ -4,9 +4,10 @@ import { useRouter } from "expo-router";
 
 interface PricingRequestDialogProps {
   providerId: string;
+  className?: string;
 }
 
-export default function PricingRequestDialog({ providerId }: PricingRequestDialogProps) {
+export default function PricingRequestDialog({ providerId, className }: PricingRequestDialogProps) {
   const router = useRouter();
 
   const handleRequestPricing = () => {
@@ -14,7 +15,7 @@ export default function PricingRequestDialog({ providerId }: PricingRequestDialo
   };
 
   return (
-    <Button onPress={handleRequestPricing}>
+    <Button className={className} onPress={handleRequestPricing}>
       <Text>Request Pricing</Text>
     </Button>
   );

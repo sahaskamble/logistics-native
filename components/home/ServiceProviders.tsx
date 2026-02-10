@@ -1,19 +1,35 @@
 import { getServiceProviders } from "@/lib/actions/providers/fetch";
 import type { ServiceProvider } from "@/lib/actions/providers/fetch";
 import React, { useEffect, useRef, useState } from "react";
-import { Dimensions, Image, NativeScrollEvent, NativeSyntheticEvent, Text } from "react-native";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
+import {
+  Dimensions,
+  Image,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ScrollView, View } from "react-native";
-import { Star } from "lucide-react-native";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import pb from "@/lib/pocketbase/pb";
 import PricingRequestDialog from "./PricingRequest";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
+import { Heart, Star } from "lucide-react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_IMAGE_WIDTH = SCREEN_WIDTH - 32;
+
+
+function getServiceTypeLabel(provider: ServiceProvider): string {
+  const expanded = (provider as any).expand?.service;
+  if (!expanded) return "SERVICE";
+  const services = Array.isArray(expanded) ? expanded : [expanded];
+  const title = services[0]?.title;
+  return (title || "SERVICE").toString().toUpperCase();
+}
 
 interface Props {
   provider: ServiceProvider;
@@ -21,24 +37,20 @@ interface Props {
 
 function ServiceProviderCard({ provider }: Props) {
   const router = useRouter();
+  const [favorited, setFavorited] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
   const autoScrollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const images = provider.files || [];
-
-  const handleViewDetails = () => {
-    // Navigate to details page with provider ID
-    router.push(`/(protected)/details/${provider.id}`);
-  };
+  const serviceLabel = getServiceTypeLabel(provider);
 
   const startAutoScroll = () => {
     if (autoScrollRef.current || images.length <= 1) return;
-
     autoScrollRef.current = setInterval(() => {
       setCurrentIndex((prev) => {
         const next = (prev + 1) % images.length;
         scrollRef.current?.scrollTo({
-          x: next * SCREEN_WIDTH,
+          x: next * CARD_IMAGE_WIDTH,
           animated: true,
         });
         return next;
@@ -53,50 +65,42 @@ function ServiceProviderCard({ provider }: Props) {
     }
   };
 
-  // Auto-scroll logic
   useEffect(() => {
     startAutoScroll();
     return stopAutoScroll;
   }, [images.length]);
 
-  // Pause auto-scroll on user interaction
   const handleScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetX = e.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / SCREEN_WIDTH);
+    const index = Math.round(offsetX / CARD_IMAGE_WIDTH);
     setCurrentIndex(index);
     startAutoScroll();
   };
 
-  const handleScrollBegin = () => {
-    stopAutoScroll();
+  const handleViewDetails = () => {
+    router.push(`/(protected)/details/${provider.id}`);
   };
 
   return (
-    <Card className="mb-6 shadow-lg pt-0 pb-4">
-      {/* Top image mask */}
-      <View
-        style={{
-          overflow: "hidden",
-          borderTopLeftRadius: 10,
-          borderTopRightRadius: 10,
-        }}
-      >
-        {/* Image Carousel */}
-        <AspectRatio ratio={16 / 9}>
-          <ScrollView
-            ref={scrollRef}
-            style={{ width: SCREEN_WIDTH, height: "100%" }}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScrollBeginDrag={handleScrollBegin}
-            onMomentumScrollEnd={handleScrollEnd}
-          >
-            {images.length > 0 ? (
-              images.map((file: string, idx: number) => (
+    <Card className="mb-6 overflow-hidden rounded-xl border border-border pt-0">
+      {/* Image carousel with overlays */}
+      <View className="relative w-full overflow-hidden">
+        <View style={{ width: "100%", aspectRatio: 16 / 9 }}>
+          {images.length > 0 ? (
+            <ScrollView
+              ref={scrollRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onScrollBeginDrag={stopAutoScroll}
+              onMomentumScrollEnd={handleScrollEnd}
+              style={{ width: CARD_IMAGE_WIDTH, flex: 1 }}
+              contentContainerStyle={{ width: CARD_IMAGE_WIDTH * images.length }}
+            >
+              {images.map((file: string, idx: number) => (
                 <View
                   key={idx}
-                  style={{ width: SCREEN_WIDTH, height: "100%" }}
+                  style={{ width: CARD_IMAGE_WIDTH, flex: 1 }}
                 >
                   <Image
                     source={{ uri: pb.files.getURL(provider, file) }}
@@ -104,15 +108,34 @@ function ServiceProviderCard({ provider }: Props) {
                     resizeMode="cover"
                   />
                 </View>
-              ))
-            ) : (
-              <View className="bg-muted w-full h-full justify-center items-center">
-                <Text className="text-muted-foreground">No images available</Text>
-              </View>
-            )}
-          </ScrollView>
-
-          {/* Optional: Dot indicators */}
+              ))}
+            </ScrollView>
+          ) : (
+            <View
+              className="bg-muted w-full h-full items-center justify-center"
+              style={{ width: CARD_IMAGE_WIDTH }}
+            >
+              <Text className="text-muted-foreground text-sm">No image</Text>
+            </View>
+          )}
+          {/* Badge top-left */}
+          <View className="absolute top-3 left-3">
+            <View className="bg-white/95 px-2.5 py-1 rounded-full">
+              <Text className="text-primary text-xs font-semibold">{serviceLabel}</Text>
+            </View>
+          </View>
+          {/* Heart top-right */}
+          {/* <Pressable
+            onPress={() => setFavorited((v) => !v)}
+            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/90 items-center justify-center"
+          >
+            <Icon
+              as={Heart}
+              size={20}
+              className={favorited ? "text-destructive fill-destructive" : "text-muted-foreground"}
+            />
+          </Pressable> */}
+          {/* Dot indicators */}
           {images.length > 1 && (
             <View className="absolute bottom-2 left-0 right-0 flex-row justify-center gap-1">
               {images.map((_: string, idx: number) => (
@@ -123,58 +146,39 @@ function ServiceProviderCard({ provider }: Props) {
               ))}
             </View>
           )}
-        </AspectRatio>
+        </View>
       </View>
 
-      <CardHeader>
-        <View className="flex-row justify-between items-start">
-          <CardTitle className="text-xl">{provider.title || "Unnamed Provider"}</CardTitle>
-
-          {/* Rating */}
-          <View className="flex-row items-center gap-1">
-            <Icon as={Star} size={18} className="text-yellow-500 fill-yellow-500" />
-            <Text className="font-semibold">{provider.rating?.toFixed(1) || "N/A"}</Text>
+      <CardHeader className="pb-2">
+        <View className="flex-row justify-between items-start gap-2">
+          <CardTitle className="text-base flex-1" numberOfLines={1}>
+            {provider.title || "Unnamed Provider"}
+          </CardTitle>
+          <View className="flex-row items-center gap-0.5">
+            <Icon as={Star} size={16} className="text-yellow-500 fill-yellow-500" />
+            <Text className="text-sm font-semibold">
+              {provider.rating?.toFixed(1) ?? "N/A"}
+            </Text>
           </View>
         </View>
-
-        <CardDescription className="mt-2">
-          {provider.description || "Reliable logistics partner for CFS, transport, and warehousing services."}
-        </CardDescription>
+        <Text
+          className="text-sm text-muted-foreground mt-1"
+          numberOfLines={2}
+        >
+          {provider.description ||
+            "Reliable logistics partner for CFS, transport, and warehousing services."}
+        </Text>
       </CardHeader>
 
-      <CardContent className="gap-4">
-        {/* Key Features  Tags */}
-
-        {provider.features && provider.features?.length > 0 && (
-          <View className="flex-row flex-wrap gap-2">
-            {provider.features?.slice(0, 4).map((feature: string, i: number) => (
-              <Badge key={i} variant="secondary" className="px-2 py-1">
-                <Text className="">{feature}</Text>
-              </Badge>
-            ))}
-            {provider.features?.length > 4 && (
-              <Badge variant="outline">
-                <Text className="text-xs">+{provider.features?.length - 4} more</Text>
-              </Badge>
-            )}
-          </View>
-        )}
-
-        {/* Action Buttons */}
-        <View className="flex-row gap-3 mt-4">
-          <PricingRequestDialog providerId={provider.id} />
-          <Link
-            asChild
-            href={`/details/${provider.id}`}>
-            <Button
-              className="flex-1"
-              variant="outline"
-              onPress={handleViewDetails}
-            >
-              <Text className="font-medium">View Details</Text>
-            </Button>
-          </Link>
-        </View>
+      <CardContent className="flex-row gap-3 pt-0">
+        <PricingRequestDialog providerId={provider.id} className="flex-1" />
+        <Button
+          variant="outline"
+          className="flex-1"
+          onPress={handleViewDetails}
+        >
+          <Text className="font-medium">View Details</Text>
+        </Button>
       </CardContent>
     </Card>
   );
@@ -184,8 +188,11 @@ export default function HomeServiceProvider({
   selectedService,
   searchQuery,
   refreshKey,
-}: { selectedService: string, searchQuery: string, refreshKey?: number }) {
-
+}: {
+  selectedService: string;
+  searchQuery: string;
+  refreshKey?: number;
+}) {
   const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -194,14 +201,15 @@ export default function HomeServiceProvider({
     const result = await getServiceProviders({
       serviceTitle: selectedService || undefined,
       searchQuery: searchQuery || undefined,
+      options: { expand: "service" },
     });
-    setServiceProviders(result.output);
+    setServiceProviders(result.output ?? []);
     setLoading(false);
-  }
+  };
 
   useEffect(() => {
     fetchServiceProviders();
-  }, [selectedService, searchQuery, refreshKey])
+  }, [selectedService, searchQuery, refreshKey]);
 
   if (loading) {
     return (
@@ -211,22 +219,23 @@ export default function HomeServiceProvider({
     );
   }
 
-  return (
-    <ScrollView contentContainerClassName="">
-      {serviceProviders.length === 0 ? (
-        <View className="items-center py-12">
-          <Text className="text-muted-foreground text-lg">
-            {selectedService || searchQuery
-              ? "No providers found matching your criteria"
-              : "No providers found"}
-          </Text>
-        </View>
-      ) : (
-        serviceProviders.map((provider) => (
-          <ServiceProviderCard key={provider.id} provider={provider} />
-        ))
-      )}
-    </ScrollView>
-  )
-}
+  if (serviceProviders.length === 0) {
+    return (
+      <View className="items-center py-12">
+        <Text className="text-muted-foreground text-lg text-center">
+          {selectedService || searchQuery
+            ? "No providers found matching your criteria"
+            : "No providers found"}
+        </Text>
+      </View>
+    );
+  }
 
+  return (
+    <View>
+      {serviceProviders.map((provider) => (
+        <ServiceProviderCard key={provider.id} provider={provider} />
+      ))}
+    </View>
+  );
+}

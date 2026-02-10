@@ -1,18 +1,37 @@
 import { useState, useEffect } from "react";
-import { ScrollView, View, Image, Alert, TouchableOpacity, Platform, RefreshControl, InteractionManager } from "react-native";
+import {
+  ScrollView,
+  View,
+  Image,
+  Alert,
+  TouchableOpacity,
+  Platform,
+  RefreshControl,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "@/components/ui/text";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
 import LoadingView from "@/components/LoadingView";
 import { Icon } from "@/components/ui/icon";
-import { Camera, Edit2, Save, X, Mail, Phone, MapPin, Building, FileText, User } from "lucide-react-native";
+import {
+  Camera,
+  Edit2,
+  Save,
+  X,
+  Mail,
+  Phone,
+  MapPin,
+  FileText,
+  User,
+  ChevronRight,
+  Building2,
+  CreditCard,
+} from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
-import { router } from "expo-router";
 import { useRootAuth } from "@/context/RootAuthCtx";
 
 type UserRecord = {
@@ -36,6 +55,68 @@ type UserProfileRecord = {
   panNo?: string;
 };
 
+function InfoRow({
+  icon: IconComponent,
+  label,
+  value,
+  editable,
+  inputValue,
+  onInputChange,
+  placeholder,
+  ...inputProps
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  editable?: boolean;
+  inputValue?: string;
+  onInputChange?: (text: string) => void;
+  placeholder?: string;
+  [key: string]: unknown;
+}) {
+  return (
+    <View className="flex-row items-center py-4 border-b border-gray-200 last:border-b-0">
+      <View className="w-10 items-center justify-center">
+        <Icon as={IconComponent} size={20} className="text-gray-400" />
+      </View>
+      <View className="flex-1 ml-3">
+        <Text className="text-xs text-gray-500 mb-0.5">{label}</Text>
+        {editable && onInputChange !== undefined ? (
+          <Input
+            value={inputValue}
+            onChangeText={onInputChange}
+            placeholder={placeholder}
+            className="border-0 p-0 h-auto min-h-0 shadow-none text-base font-medium text-foreground"
+            {...inputProps}
+          />
+        ) : (
+          <Text className="text-base font-medium text-foreground">{value || "—"}</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function getInitials(user: UserRecord | null): string {
+  if (!user) return "?";
+  const name = user.name || `${user.firstname || ""} ${user.lastname || ""}`.trim();
+  if (name) {
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  }
+  if (user.email) return user.email.slice(0, 2).toUpperCase();
+  return "?";
+}
+
+function formatPhone(phone: number | string | undefined): string {
+  if (phone == null) return "";
+  const s = String(phone);
+  if (s.startsWith("+")) return s;
+  if (s.length === 10) return `+91 ${s}`;
+  return s;
+}
+
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,12 +126,10 @@ export default function ProfilePage() {
   const [userProfile, setUserProfile] = useState<UserProfileRecord | null>(null);
   const { Logout } = useRootAuth();
   const [formData, setFormData] = useState({
-    // Users collection fields
     firstname: "",
     lastname: "",
     name: "",
     phone: "",
-    // User profile fields
     address: "",
     businessName: "",
     contact: "",
@@ -71,16 +150,14 @@ export default function ProfilePage() {
         return;
       }
 
-      // Fetch user data from users collection
       const userData = await pb.collection("users").getOne<UserRecord>(currentUser.user.id);
       setUser(userData);
 
-      // Fetch user profile data
       try {
         const profileData = await pb.collection("user_profile").getFirstListItem<UserProfileRecord>(
           `user="${currentUser.user.id}"`
         );
-        setUserProfile(profileData as any);
+        setUserProfile(profileData as UserProfileRecord);
         setFormData({
           firstname: userData.firstname || "",
           lastname: userData.lastname || "",
@@ -93,13 +170,12 @@ export default function ProfilePage() {
           panNo: profileData.panNo || "",
         });
       } catch (error: any) {
-        // User profile might not exist yet, create it
         if (error?.status === 404) {
           try {
             const newProfile = await pb.collection("user_profile").create<UserProfileRecord>({
               user: currentUser.user.id,
             });
-            setUserProfile(newProfile as any);
+            setUserProfile(newProfile as UserProfileRecord);
           } catch (createError) {
             console.error("Error creating user profile:", createError);
           }
@@ -146,19 +222,16 @@ export default function ProfilePage() {
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        const formData = new FormData();
-
+        const fd = new FormData();
         // @ts-ignore
-        formData.append("avatar", {
+        fd.append("avatar", {
           uri: asset.uri,
           type: "image/jpeg",
           name: "avatar.jpg",
         });
 
         setSaving(true);
-        await pb.collection("users").update(user!.id, formData);
-
-        // Refresh user data
+        await pb.collection("users").update(user!.id, fd);
         const updatedUser = await pb.collection("users").getOne<UserRecord>(user!.id);
         setUser(updatedUser);
         Alert.alert("Success", "Profile picture updated successfully!");
@@ -181,15 +254,14 @@ export default function ProfilePage() {
         return;
       }
 
-      // Update users collection
+      const nameParts = (formData.name || "").trim().split(/\s+/).filter(Boolean);
       await pb.collection("users").update(currentUser.user.id, {
-        firstname: formData.firstname || undefined,
-        lastname: formData.lastname || undefined,
-        name: formData.name || undefined,
-        phone: formData.phone ? parseInt(formData.phone) : undefined,
+        firstname: nameParts[0] || formData.firstname || undefined,
+        lastname: nameParts.length > 1 ? nameParts.slice(1).join(" ") : formData.lastname || undefined,
+        name: formData.name?.trim() || undefined,
+        phone: formData.phone?.trim() ? formData.phone.replace(/\D/g, "") : undefined,
       });
 
-      // Update or create user_profile
       if (userProfile) {
         await pb.collection("user_profile").update(userProfile.id, {
           address: formData.address || undefined,
@@ -207,10 +279,9 @@ export default function ProfilePage() {
           gstIn: formData.gstIn || undefined,
           panNo: formData.panNo || undefined,
         });
-        setUserProfile(newProfile);
+        setUserProfile(newProfile as UserProfileRecord);
       }
 
-      // Refresh data
       await fetchProfileData();
       setEditing(false);
       Alert.alert("Success", "Profile updated successfully!");
@@ -228,259 +299,176 @@ export default function ProfilePage() {
 
   const avatarUrl = user?.avatar ? pb.files.getURL(user, user.avatar) : null;
   const displayName = user?.name || `${user?.firstname || ""} ${user?.lastname || ""}`.trim() || user?.email || "User";
+  const fullName = user?.name || `${user?.firstname || ""} ${user?.lastname || ""}`.trim() || "—";
+  const phoneDisplay = formatPhone(user?.phone) || formData.phone || "—";
 
   return (
     <ScrollView
-      className="flex-1 bg-background"
+      className="flex-1 bg-gray-100"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <View className="p-4 gap-4">
-        {/* Profile Header */}
-        <Card>
-          <CardContent className="items-center pt-6 pb-4">
-            <View className="relative mb-4">
+      {/* Profile Header - Gradient */}
+      <View className="relative">
+        <View
+          className="pt-12 pb-20 px-4 items-center bg-primary"
+        >
+          <TouchableOpacity
+            onPress={() => setEditing(!editing)}
+            className="absolute top-12 right-4 w-10 h-10 rounded-full bg-white/20 items-center justify-center"
+          >
+            <Icon as={Edit2} size={20} className="text-white" />
+          </TouchableOpacity>
+
+          <View className="items-center">
+            <View className="relative">
               {avatarUrl ? (
                 <Image
                   source={{ uri: avatarUrl }}
-                  className="w-24 h-24 rounded-full"
+                  className="w-24 h-24 rounded-full bg-gray-300"
                   style={{ width: 96, height: 96, borderRadius: 48 }}
                 />
               ) : (
-                <View className="w-24 h-24 rounded-full bg-primary/10 items-center justify-center">
-                  <Icon as={User} size={48} className="text-primary" />
+                <View className="w-24 h-24 rounded-full bg-gray-300 items-center justify-center">
+                  <Text className="text-2xl font-semibold text-gray-600">{getInitials(user)}</Text>
                 </View>
               )}
               <TouchableOpacity
                 onPress={handleImagePicker}
                 disabled={saving}
-                className="absolute bottom-0 right-0 bg-primary rounded-full p-2 border-2 border-background"
+                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-800 items-center justify-center"
               >
-                <Icon as={Camera} size={20} className="text-primary-foreground" />
+                <Icon as={Camera} size={14} className="text-white" />
               </TouchableOpacity>
             </View>
-            <Text className="text-2xl font-bold text-center">{displayName}</Text>
+            <Text className="text-xl font-bold text-white mt-4">{displayName}</Text>
             {user?.email && (
-              <View className="flex-row items-center gap-2 mt-2">
-                <Icon as={Mail} size={16} className="text-muted-foreground" />
-                <Text className="text-muted-foreground">{user.email}</Text>
-              </View>
+              <Text className="text-sm text-white/90 mt-1">{user.email}</Text>
             )}
             {user?.role && (
-              <Badge variant="secondary" className="mt-2">
-                <Text>{user.role}</Text>
-              </Badge>
+              <View className="mt-2 px-3 py-1 rounded-lg bg-background">
+                <Text className="text-sm font-medium text-foreground">{user.role}</Text>
+              </View>
             )}
-          </CardContent>
-        </Card>
+          </View>
+        </View>
+      </View>
 
-        {/* Edit/Save Button */}
-        <View className="flex-row gap-2">
-          {editing ? (
-            <>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onPress={() => {
-                  setEditing(false);
-                  fetchProfileData(); // Reset form data
-                }}
-                disabled={saving}
-              >
-                <Icon as={X} size={20} className="mr-2" />
-                <Text>Cancel</Text>
-              </Button>
-              <Button
-                className="flex-1"
-                onPress={handleSave}
-                disabled={saving}
-              >
-                <Icon as={Save} size={20} className="mr-2" />
-                <Text>{saving ? "Saving..." : "Save"}</Text>
-              </Button>
-            </>
-          ) : (
+      {/* Content cards - overlap gradient */}
+      <View className="px-4 -mt-16 gap-5 pb-8">
+        {/* Edit mode: Save/Cancel */}
+        {editing && (
+          <View className="flex-row gap-2">
             <Button
               variant="outline"
               className="flex-1"
-              onPress={() => setEditing(true)}
+              onPress={() => {
+                setEditing(false);
+                fetchProfileData();
+              }}
+              disabled={saving}
             >
-              <Icon as={Edit2} size={20} className="mr-2" />
-              <Text>Edit Profile</Text>
+              <Icon as={X} size={18} className="mr-2" />
+              <Text>Cancel</Text>
             </Button>
-          )}
+            <Button className="flex-1" onPress={handleSave} disabled={saving}>
+              <Icon as={Save} size={18} className="mr-2" />
+              <Text>{saving ? "Saving..." : "Save"}</Text>
+            </Button>
+          </View>
+        )}
+
+        {/* PERSONAL INFORMATION */}
+        <View>
+          <Text className="text-xs text-center font-medium text-white uppercase tracking-wider mb-2">
+            Personal Information
+          </Text>
+          <Card className="rounded-xl bg-white shadow-sm overflow-hidden">
+            <CardContent className="p-0 px-4">
+              <InfoRow
+                icon={User}
+                label="Full Name"
+                value={fullName}
+                editable={editing}
+                inputValue={formData.name || `${formData.firstname} ${formData.lastname}`.trim()}
+                onInputChange={(t) => setFormData((prev) => ({ ...prev, name: t }))}
+                placeholder="Enter full name"
+              />
+              <InfoRow
+                icon={Mail}
+                label="Email Address"
+                value={user?.email || ""}
+              />
+              <InfoRow
+                icon={Phone}
+                label="Phone Number"
+                value={phoneDisplay}
+                editable={editing}
+                inputValue={formData.phone}
+                onInputChange={(t) => setFormData((prev) => ({ ...prev, phone: t.replace(/\D/g, "") }))}
+                placeholder="Enter phone number"
+                keyboardType="phone-pad"
+              />
+            </CardContent>
+          </Card>
         </View>
 
-        {/* Personal Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Personal Information</CardTitle>
-          </CardHeader>
-          <CardContent className="gap-4">
-            <View className="gap-2">
-              <Label>Full Name</Label>
-              {editing ? (
-                <Input
-                  value={formData.name}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, name: text }))}
-                  placeholder="Enter full name"
-                />
-              ) : (
-                <Text className="text-base">{user?.name || "Not set"}</Text>
-              )}
-            </View>
+        {/* BUSINESS INFORMATION */}
+        <View>
+          <Text className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+            Business Information
+          </Text>
+          <Card className="rounded-xl bg-white shadow-sm overflow-hidden">
+            <CardContent className="p-0 px-4">
+              <InfoRow
+                icon={Building2}
+                label="Business Name"
+                value={userProfile?.businessName || ""}
+                editable={editing}
+                inputValue={formData.businessName}
+                onInputChange={(t) => setFormData((prev) => ({ ...prev, businessName: t }))}
+                placeholder="Enter business name"
+              />
+              <InfoRow
+                icon={MapPin}
+                label="Address"
+                value={userProfile?.address || ""}
+                editable={editing}
+                inputValue={formData.address}
+                onInputChange={(t) => setFormData((prev) => ({ ...prev, address: t }))}
+                placeholder="Enter address"
+              />
+              <InfoRow
+                icon={FileText}
+                label="GST IN"
+                value={userProfile?.gstIn || ""}
+                editable={editing}
+                inputValue={formData.gstIn}
+                onInputChange={(t) => setFormData((prev) => ({ ...prev, gstIn: t.toUpperCase() }))}
+                placeholder="Enter GST IN"
+                autoCapitalize="characters"
+              />
+              <InfoRow
+                icon={CreditCard}
+                label="PAN No"
+                value={userProfile?.panNo || ""}
+                editable={editing}
+                inputValue={formData.panNo}
+                onInputChange={(t) => setFormData((prev) => ({ ...prev, panNo: t.toUpperCase() }))}
+                placeholder="Enter PAN number"
+                autoCapitalize="characters"
+              />
+            </CardContent>
+          </Card>
+        </View>
 
-            <View className="gap-2">
-              <Label>First Name</Label>
-              {editing ? (
-                <Input
-                  value={formData.firstname}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, firstname: text }))}
-                  placeholder="Enter first name"
-                />
-              ) : (
-                <Text className="text-base">{user?.firstname || "Not set"}</Text>
-              )}
-            </View>
-
-            <View className="gap-2">
-              <Label>Last Name</Label>
-              {editing ? (
-                <Input
-                  value={formData.lastname}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, lastname: text }))}
-                  placeholder="Enter last name"
-                />
-              ) : (
-                <Text className="text-base">{user?.lastname || "Not set"}</Text>
-              )}
-            </View>
-
-            <View className="gap-2">
-              <Label>Email</Label>
-              <View className="flex-row items-center gap-2">
-                <Icon as={Mail} size={16} className="text-muted-foreground" />
-                <Text className="text-base">{user?.email || "Not set"}</Text>
-              </View>
-              <Text className="text-xs text-muted-foreground">Email cannot be changed</Text>
-            </View>
-
-            <View className="gap-2">
-              <Label>Phone</Label>
-              {editing ? (
-                <Input
-                  value={formData.phone}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, phone: text.replace(/\D/g, "") }))}
-                  placeholder="Enter phone number"
-                  keyboardType="phone-pad"
-                />
-              ) : (
-                <View className="flex-row items-center gap-2">
-                  <Icon as={Phone} size={16} className="text-muted-foreground" />
-                  <Text className="text-base">{user?.phone || "Not set"}</Text>
-                </View>
-              )}
-            </View>
-          </CardContent>
-        </Card>
-
-        {/* Business Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Business Information</CardTitle>
-          </CardHeader>
-          <CardContent className="gap-4">
-            <View className="gap-2">
-              <Label>Business Name</Label>
-              {editing ? (
-                <Input
-                  value={formData.businessName}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, businessName: text }))}
-                  placeholder="Enter business name"
-                />
-              ) : (
-                <View className="flex-row items-center gap-2">
-                  <Icon as={Building} size={16} className="text-muted-foreground" />
-                  <Text className="text-base">{userProfile?.businessName || "Not set"}</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="gap-2">
-              <Label>Address</Label>
-              {editing ? (
-                <Input
-                  value={formData.address}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, address: text }))}
-                  placeholder="Enter address"
-                  multiline
-                  numberOfLines={3}
-                  className="min-h-[80px]"
-                />
-              ) : (
-                <View className="flex-row items-start gap-2">
-                  <Icon as={MapPin} size={16} className="text-muted-foreground mt-1" />
-                  <Text className="text-base flex-1">{userProfile?.address || "Not set"}</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="gap-2">
-              <Label>Contact</Label>
-              {editing ? (
-                <Input
-                  value={formData.contact}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, contact: text }))}
-                  placeholder="Enter contact information"
-                />
-              ) : (
-                <Text className="text-base">{userProfile?.contact || "Not set"}</Text>
-              )}
-            </View>
-
-            <View className="gap-2">
-              <Label>GST IN</Label>
-              {editing ? (
-                <Input
-                  value={formData.gstIn}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, gstIn: text.toUpperCase() }))}
-                  placeholder="Enter GST IN"
-                  autoCapitalize="characters"
-                />
-              ) : (
-                <View className="flex-row items-center gap-2">
-                  <Icon as={FileText} size={16} className="text-muted-foreground" />
-                  <Text className="text-base">{userProfile?.gstIn || "Not set"}</Text>
-                </View>
-              )}
-            </View>
-
-            <View className="gap-2">
-              <Label>PAN No</Label>
-              {editing ? (
-                <Input
-                  value={formData.panNo}
-                  onChangeText={(text) => setFormData((prev) => ({ ...prev, panNo: text.toUpperCase() }))}
-                  placeholder="Enter PAN number"
-                  autoCapitalize="characters"
-                />
-              ) : (
-                <View className="flex-row items-center gap-2">
-                  <Icon as={FileText} size={16} className="text-muted-foreground" />
-                  <Text className="text-base">{userProfile?.panNo || "Not set"}</Text>
-                </View>
-              )}
-            </View>
-          </CardContent>
-        </Card>
-
-        {/* Logout Button */}
-        <Button
-          variant="destructive"
-          className="mb-8"
+        {/* Log Out Button */}
+        <TouchableOpacity
           onPress={Logout}
+          className="flex-row items-center justify-between py-4 px-4 shadow border border-red-300 rounded-xl bg-red-50 active:opacity-80"
         >
-          <Text className="text-destructive-foreground">Logout</Text>
-        </Button>
+          <Text className="text-base font-bold text-red-600">Log Out</Text>
+          <Icon as={ChevronRight} size={22} className="text-red-600" />
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );

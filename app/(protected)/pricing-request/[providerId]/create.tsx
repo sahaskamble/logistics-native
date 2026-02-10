@@ -5,6 +5,7 @@ import { Text } from "@/components/ui/text";
 import { useState, useEffect } from "react";
 import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
+import { createNotificationForCurrentUser } from "@/lib/actions/notifications/notification";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, type Option } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -171,19 +172,13 @@ export default function CreatePricingRequestPage() {
       // Submit to PocketBase
       await pb.collection("cfs_pricing_request").create(data);
 
-      // Create notification for the user
       try {
-        await pb.collection("notification").create({
-          user: user.user?.id || '',
+        await createNotificationForCurrentUser({
           title: "Pricing Request Submitted",
           description: `Your pricing request for ${provider?.title || "service provider"} has been submitted successfully.`,
-          type: "alert" as const,
-          status: "Active" as const,
-          createdFor: "Customer" as const,
-          isRead: false,
+          type: "alert",
         });
       } catch (notificationError) {
-        // Log notification error but don't fail the submission
         console.error("Error creating notification:", notificationError);
       }
 

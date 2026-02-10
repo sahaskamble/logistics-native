@@ -7230,11 +7230,11 @@
   },
   {
     "id": "pbc_2783733763",
-    "listRule": "status = \"Active\" && createdFor = @request.auth.role",
-    "viewRule": "createdFor = @request.auth.role",
+    "listRule": "@request.auth.id != \"\" && status = \"Active\"",
+    "viewRule": "@request.auth.id != \"\" && status = \"Active\"",
     "createRule": "",
-    "updateRule": "createdFor = @request.auth.role",
-    "deleteRule": "createdFor = @request.auth.role",
+    "updateRule": "@request.auth.id != \"\"",
+    "deleteRule": "@request.auth.id != \"\"",
     "name": "notification",
     "type": "base",
     "fields": [
@@ -7480,13 +7480,27 @@
         "presentable": false,
         "system": false,
         "type": "autodate"
+      },
+      {
+        "cascadeDelete": false,
+        "collectionId": "_pb_users_auth_",
+        "hidden": false,
+        "id": "relation2783733999",
+        "maxSelect": 1,
+        "minSelect": 0,
+        "name": "user",
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "relation"
       }
     ],
     "indexes": [
       "CREATE INDEX `idx_mSAKDM68iJ` ON `notification` (`status`)",
       "CREATE INDEX `idx_JVNoiHmzyJ` ON `notification` (`created`)",
       "CREATE INDEX `idx_cOVV1cDJRu` ON `notification` (`createdFor`)",
-      "CREATE INDEX `idx_lYviQ54Tzc` ON `notification` (\n  `status`,\n  `createdFor`,\n  `created`\n)"
+      "CREATE INDEX `idx_lYviQ54Tzc` ON `notification` (\n  `status`,\n  `createdFor`,\n  `created`\n)",
+      "CREATE INDEX `idx_notification_user` ON `notification` (`user`)"
     ],
     "system": false
   },

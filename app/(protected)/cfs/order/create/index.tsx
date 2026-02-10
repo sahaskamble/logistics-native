@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  View,
+} from "react-native";
 import { Stack, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -68,8 +75,17 @@ export default function CreateOrderPage() {
   const [deliveryType, setDeliveryType] = useState<"Loaded" | "Destuffed" | null>(null);
   const [dpdType, setDpdType] = useState<"DPD" | "Non-DPD" | null>(null);
 
-  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [mblFiles, setMblFiles] = useState<PickedFile[]>([]);
+  const [hblFiles, setHblFiles] = useState<PickedFile[]>([]);
   const [confirmShippingLine, setConfirmShippingLine] = useState<PickedFile | null>(null);
+
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -138,50 +154,67 @@ export default function CreateOrderPage() {
     });
   };
 
-  const pickFiles = async () => {
-    try {
-      const res = await DocumentPicker.getDocumentAsync({
-        multiple: true,
-        copyToCacheDirectory: true,
-      });
-
-      if (res.canceled) return;
-
-      const assets = res.assets || [];
-      const mapped: PickedFile[] = assets
-        .filter((a) => !!a?.uri)
-        .map((a) => ({
-          uri: a.uri,
-          name: a.name || "file",
-          type: (a.mimeType || "application/octet-stream") as string,
-        }));
-
-      setFiles(mapped);
-    } catch (e: any) {
-      Alert.alert("Error", e?.message || "Failed to pick files.");
-    }
+  // Defer opening picker so Android activity is stable (avoids app exit when picker opens).
+  const openDocumentPicker = async (
+    options: { multiple: boolean },
+    onResult: (mapped: PickedFile[]) => void
+  ) => {
+    const runAfterIdle = (fn: () => void) => {
+      if (typeof requestIdleCallback !== "undefined") {
+        requestIdleCallback(fn, { timeout: 200 });
+      } else {
+        setTimeout(fn, 200);
+      }
+    };
+    runAfterIdle(async () => {
+      if (!mountedRef.current) return;
+      try {
+        console.log("Picker Mounted");
+        const res = await DocumentPicker.getDocumentAsync({
+          multiple: options.multiple,
+          copyToCacheDirectory: true,
+          type: "*/*",
+        });
+        console.log("Result", res);
+        if (res.canceled || !mountedRef.current) return;
+        const assets = res.assets || [];
+        console.log("File Or Assets", assets);
+        const mapped: PickedFile[] = assets
+          .filter((a) => !!a?.uri)
+          .map((a) => ({
+            uri: a.uri,
+            name: a.name || "file",
+            type: (a.mimeType || "application/octet-stream") as string,
+          }));
+        if (mapped.length > 0 && mountedRef.current) {
+          requestAnimationFrame(() => {
+            if (mountedRef.current) onResult(mapped);
+          });
+        }
+      } catch (e: any) {
+        if (mountedRef.current) {
+          Alert.alert("Error", e?.message || "Failed to pick file(s).");
+        }
+      }
+    });
   };
 
-  const pickConfirmShippingLine = async () => {
-    try {
-      const res = await DocumentPicker.getDocumentAsync({
-        multiple: false,
-        copyToCacheDirectory: true,
-      });
+  const pickMblFiles = () => {
+    openDocumentPicker({ multiple: true }, (mapped) => {
+      setMblFiles((prev) => [...prev, ...mapped]);
+    });
+  };
 
-      if (res.canceled) return;
+  const pickHblFiles = () => {
+    openDocumentPicker({ multiple: true }, (mapped) => {
+      setHblFiles((prev) => [...prev, ...mapped]);
+    });
+  };
 
-      const a = res.assets?.[0];
-      if (!a?.uri) return;
-
-      setConfirmShippingLine({
-        uri: a.uri,
-        name: a.name || "confirmShippingLine",
-        type: (a.mimeType || "application/octet-stream") as string,
-      });
-    } catch (e: any) {
-      Alert.alert("Error", e?.message || "Failed to pick document.");
-    }
+  const pickConfirmShippingLine = () => {
+    openDocumentPicker({ multiple: false }, (mapped) => {
+      if (mapped[0]) setConfirmShippingLine(mapped[0]);
+    });
   };
 
   const handleSubmit = async () => {
@@ -202,7 +235,7 @@ export default function CreateOrderPage() {
         deliveryType: (deliveryType as any) || undefined,
         orderDescription,
         containers: selectedContainerIds,
-        files,
+        files: [...mblFiles, ...hblFiles],
         confirmShippingLine,
       });
 
@@ -376,9 +409,40 @@ export default function CreateOrderPage() {
 
               <View className="gap-2">
                 <Text className="text-sm text-muted-foreground">MBL copy (files)</Text>
-                <Button variant="outline" onPress={pickFiles}>
-                  <Text>{files.length > 0 ? `${files.length} file(s) selected` : "Pick files"}</Text>
+                <Button variant="outline" onPress={pickMblFiles}>
+                  <Text>{mblFiles.length > 0 ? `${mblFiles.length} file(s) selected` : "Pick files"}</Text>
                 </Button>
+                {mblFiles.length > 0 && (
+                  <View className="gap-1">
+                    {mblFiles.map((f, i) => (
+                      <View key={i} className="flex-row items-center justify-between bg-muted p-2 rounded">
+                        <Text numberOfLines={1} className="flex-1 text-sm mr-2">{f.name}</Text>
+                        <Pressable onPress={() => setMblFiles((prev) => prev.filter((_, j) => j !== i))}>
+                          <Icon as={X} className="size-4 text-destructive" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              <View className="gap-2">
+                <Text className="text-sm text-muted-foreground">HBL copy (files)</Text>
+                <Button variant="outline" onPress={pickHblFiles}>
+                  <Text>{hblFiles.length > 0 ? `${hblFiles.length} file(s) selected` : "Pick files"}</Text>
+                </Button>
+                {hblFiles.length > 0 && (
+                  <View className="gap-1">
+                    {hblFiles.map((f, i) => (
+                      <View key={i} className="flex-row items-center justify-between bg-muted p-2 rounded">
+                        <Text numberOfLines={1} className="flex-1 text-sm mr-2">{f.name}</Text>
+                        <Pressable onPress={() => setHblFiles((prev) => prev.filter((_, j) => j !== i))}>
+                          <Icon as={X} className="size-4 text-destructive" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
 
               <View className="gap-2">

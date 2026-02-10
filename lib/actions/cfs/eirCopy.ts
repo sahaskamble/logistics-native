@@ -1,6 +1,7 @@
 import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
 import { mergeFilters, type PbQueryOptions } from "@/lib/actions/pbOptions";
+import { createNotificationForCurrentUser } from "@/lib/actions/notifications/notification";
 
 type PbBaseRecord = {
   id: string;
@@ -189,6 +190,18 @@ export async function createEirCopyRequest(params: {
     });
 
     const created = await pb.collection("cfs_service_requests").create<CfsServiceRequestRecord>(fd as any);
+
+    try {
+      await createNotificationForCurrentUser({
+        title: "EIR Copy Request Created",
+        description: "Your EIR Copy request has been created successfully.",
+        type: "event",
+        ordersId: orderId,
+      });
+    } catch (err) {
+      console.error("Error creating notification for EIR Copy request", err);
+    }
+
     return { success: true, message: "EIR Copy request created successfully.", output: created };
   } catch (err: any) {
     console.error("Error creating EIR Copy request", err);
@@ -238,6 +251,18 @@ export async function updateEirCopyRequest(params: {
     });
 
     const updated = await pb.collection("cfs_service_requests").update<CfsServiceRequestRecord>(id, fd as any);
+
+    try {
+      await createNotificationForCurrentUser({
+        title: "EIR Copy Request Updated",
+        description: "Your EIR Copy request has been updated.",
+        type: "event",
+        ordersId: existing.order,
+      });
+    } catch (err) {
+      console.error("Error creating notification for EIR Copy request update", err);
+    }
+
     return { success: true, message: "EIR Copy request updated successfully.", output: updated };
   } catch (err: any) {
     console.error("Error updating EIR Copy request", err);

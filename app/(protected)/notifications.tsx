@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ScrollView, View, RefreshControl, TouchableOpacity } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Text } from "@/components/ui/text";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const res = await listNotificationsForCurrentUser();
       if (!res.success) {
@@ -28,11 +29,15 @@ export default function NotificationsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
   }, []);
+
+  // Refetch whenever the notifications screen is focused (e.g. opening the tab or returning to it)
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchNotifications();
+    }, [fetchNotifications])
+  );
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {

@@ -1,6 +1,7 @@
 import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
 import { mergeFilters, type PbQueryOptions } from "@/lib/actions/pbOptions";
+import { createNotificationForCurrentUser } from "@/lib/actions/notifications/notification";
 
 type PbBaseRecord = {
   id: string;
@@ -394,10 +395,20 @@ export async function updateCfsOrder(
       return { success: false, message: "Not allowed to update this order.", output: null };
     }
 
-    // Perform update
     const updatedOrder = await pb
       .collection("cfs_orders")
       .update<CfsOrderRecord>(id, data);
+
+    try {
+      await createNotificationForCurrentUser({
+        title: "CFS Order Updated",
+        description: `Your CFS order has been updated successfully.`,
+        type: "event",
+        ordersId: id,
+      });
+    } catch (err) {
+      console.error("Error creating notification for CFS order update", err);
+    }
 
     return {
       success: true,

@@ -2,17 +2,27 @@ import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
 import { mergeFilters, type PbQueryOptions } from "@/lib/actions/pbOptions";
 
+/**
+ * Matches notification collection in logistics-schema-v1.2.3.json:
+ * - listRule: @request.auth.id != "" && status = "Active"
+ * - viewRule: same as listRule
+ * - updateRule: @request.auth.id != ""
+ * - Fields: id, title, description, attachment, type (event|alert), date, mode, time, sentOn,
+ *   start_time, end_time, status (Active|Inactive), link1, link2, link3, createdFor (Customer|Merchant|Gol),
+ *   orders_id, isRead (bool), created, updated, user (relation to _pb_users_auth_)
+ */
 export type NotificationRecord = {
   id: string;
   title?: string;
   description?: string;
-  type?: "event" | "alert" | string;
-  status?: "Active" | "Inactive" | string;
-  createdFor?: "Customer" | "Merchant" | "Gol" | string;
+  type?: "event" | "alert";
+  status?: "Active" | "Inactive";
+  createdFor?: "Customer" | "Merchant" | "Gol";
   orders_id?: string;
   isRead?: boolean;
   created?: string;
   updated?: string;
+  user?: string;
   expand?: any;
 };
 
@@ -21,56 +31,54 @@ function isPbFieldMissingError(err: any) {
   return msg.includes("missing") || msg.includes("unknown field") || msg.includes("invalid filter") || msg.includes("cannot") || msg.includes("failed to") || msg.includes("field");
 }
 
-function buildFilter(params: { userId: string; includeRead?: boolean }) {
-  const parts: string[] = [];
-
-  // Always constrain to customer-facing notifications.
-  parts.push(`createdFor="Customer"`);
-  parts.push(`status="Active"`);
-
-  if (!params.includeRead) {
-    parts.push(`isRead=false`);
+/**
+ * Build filter using only schema fields. listRule allows listing records where status = "Active".
+ * We filter by createdFor and status (required by listRule); optionally isRead; optionally user.
+ * PocketBase filter: field = "value" for select, isRead = false for bool, user = "id" for relation.
+ */
+function buildFilter(params: { includeRead?: boolean; userId?: string }) {
+  const parts: string[] = [
+    'status = "Active"',
+    'createdFor = "Customer"',
+  ];
+  if (params.includeRead === false) {
+    parts.push("isRead = false");
   }
-
-  // Prefer explicit user filtering when the field exists.
-  parts.push(`user="${params.userId}"`);
-
+  if (params.userId) {
+    parts.push(`user = "${params.userId}"`);
+  }
   return parts.join(" && ");
 }
 
-async function runListWithBestFilter(params: {
+/**
+ * List notifications for the current user. Uses schema fields only.
+ * Tries filter with user first; on failure falls back to minimal filter and filters by user in memory.
+ */
+async function listForUser(params: {
   userId: string;
   options?: PbQueryOptions;
-  includeRead?: boolean;
+  includeRead: boolean;
 }): Promise<NotificationRecord[]> {
   const baseOptions: PbQueryOptions = {
     ...params.options,
-    sort: params.options?.sort || "-created",
-    expand: params.options?.expand || "user,createdBy",
+    sort: params.options?.sort ?? "-created",
+    expand: params.options?.expand,
   };
 
-  // Attempt 1: filter by user + createdFor.
-  try {
-    const filter = mergeFilters(buildFilter({ userId: params.userId, includeRead: params.includeRead }), params.options?.filter);
-    return await pb.collection("notification").getFullList<NotificationRecord>({
+  const tryFetch = (filter: string) =>
+    pb.collection("notification").getFullList<NotificationRecord>({
       ...baseOptions,
-      filter,
+      filter: params.options?.filter ? mergeFilters(filter, params.options.filter) : filter,
     });
-  } catch (err: any) {
-    // If the `user` relation doesn't exist yet, fall back to createdFor-only.
-    if (!isPbFieldMissingError(err)) throw err;
+
+  try {
+    const withUser = buildFilter({ includeRead: params.includeRead, userId: params.userId });
+    return await tryFetch(withUser);
+  } catch {
+    const minimal = buildFilter({ includeRead: params.includeRead });
+    const list = await tryFetch(minimal);
+    return list.filter((r) => (r.user ?? "") === params.userId);
   }
-
-  // Attempt 2: createdFor-only filter.
-  const fallbackFilter = mergeFilters(
-    `createdFor="Customer" && status="Active"${params.includeRead ? "" : " && isRead=false"}`,
-    params.options?.filter
-  );
-
-  return pb.collection("notification").getFullList<NotificationRecord>({
-    ...baseOptions,
-    filter: fallbackFilter,
-  });
 }
 
 export async function listNotificationsForCurrentUser(options?: PbQueryOptions): Promise<{
@@ -83,8 +91,11 @@ export async function listNotificationsForCurrentUser(options?: PbQueryOptions):
     if (!user.isValid || !user.user?.id) {
       return { success: false, message: "User not authenticated.", output: [] };
     }
-
-    const records = await runListWithBestFilter({ userId: user.user.id, options, includeRead: true });
+    const records = await listForUser({
+      userId: user.user.id,
+      options,
+      includeRead: true,
+    });
     return { success: true, message: "Fetched notifications.", output: records };
   } catch (err: any) {
     console.error("Error listing notifications", err);
@@ -105,13 +116,16 @@ export async function getUnreadNotificationsCountForCurrentUser(): Promise<{
     if (!user.isValid || !user.user?.id) {
       return { success: false, message: "User not authenticated.", output: 0 };
     }
-
-    const list = await runListWithBestFilter({ userId: user.user.id, includeRead: false, options: { sort: "-created" } });
+    const list = await listForUser({
+      userId: user.user.id,
+      options: { sort: "-created" },
+      includeRead: false,
+    });
     return { success: true, message: "Fetched unread count.", output: list.length };
   } catch (err: any) {
-    console.error("Error getting unread count", err);
-    const status = err?.status;
     const details = err?.data?.message || err?.message;
+    console.error("Error getting unread count", err?.status, details, err?.data);
+    const status = err?.status;
     const message = status ? `Failed to fetch unread count (HTTP ${status}). ${details || ""}`.trim() : details || "Failed to fetch unread count.";
     return { success: false, message, output: 0 };
   }
@@ -126,12 +140,10 @@ export async function markNotificationAsRead(notificationId: string): Promise<{
     if (!user.isValid || !user.user?.id) {
       return { success: false, message: "User not authenticated." };
     }
-
     const id = notificationId?.trim();
     if (!id) {
       return { success: false, message: "Notification ID is required." };
     }
-
     await pb.collection("notification").update(id, { isRead: true });
     return { success: true, message: "Marked as read." };
   } catch (err: any) {
@@ -143,42 +155,51 @@ export async function markNotificationAsRead(notificationId: string): Promise<{
   }
 }
 
-export async function createNotificationForCurrentUser(params: {
+export type CreateNotificationParams = {
   title: string;
   description?: string;
   type?: "event" | "alert";
   ordersId?: string;
-}): Promise<{ success: boolean; message: string }> {
-  try {
-    const user = getCurrentUser();
-    if (!user.isValid || !user.user?.id) {
-      return { success: false, message: "User not authenticated." };
-    }
+  createdFor?: "Customer" | "Merchant" | "Gol";
+  userId?: string;
+};
 
-    const title = params.title?.trim();
-    if (!title) {
+/**
+ * Create a notification. Payload uses only schema fields: title, description, type, status, createdFor, orders_id, isRead, user.
+ */
+export async function createNotification(params: CreateNotificationParams): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  try {
+    const current = getCurrentUser();
+    const createdFor = params.createdFor ?? "Customer";
+    const targetUserId =
+      params.userId?.trim() || (createdFor === "Customer" && current.isValid && current.user?.id ? current.user.id : "");
+
+    if (!params.title?.trim()) {
       return { success: false, message: "Notification title is required." };
     }
 
-    const payload: any = {
-      title,
-      description: (params.description || "").trim() || undefined,
-      type: params.type || "alert",
+    const payload: Record<string, unknown> = {
+      title: params.title.trim(),
+      description: (params.description ?? "").trim() || undefined,
+      type: params.type ?? "alert",
       status: "Active",
-      createdFor: "Customer",
+      createdFor,
       isRead: false,
       orders_id: params.ordersId?.trim() || undefined,
-      user: user.user.id,
     };
+    if (targetUserId) {
+      payload.user = targetUserId;
+    }
 
-    // If user relation isn't present, remove it.
     try {
-      await pb.collection("notification").create(payload);
+      await pb.collection("notification").create(payload as any);
     } catch (err: any) {
       if (!isPbFieldMissingError(err)) throw err;
-      const fallbackPayload = { ...payload };
-      delete fallbackPayload.user;
-      await pb.collection("notification").create(fallbackPayload);
+      delete payload.user;
+      await pb.collection("notification").create(payload as any);
     }
 
     return { success: true, message: "Notification created." };
@@ -186,7 +207,18 @@ export async function createNotificationForCurrentUser(params: {
     console.error("Error creating notification", err);
     const status = err?.status;
     const details = err?.data?.message || err?.message;
-    const message = status ? `Failed to create notification (HTTP ${status}). ${details || ""}`.trim() : details || "Failed to create notification.";
+    const message = status
+      ? `Failed to create notification (HTTP ${status}). ${details || ""}`.trim()
+      : details || "Failed to create notification.";
     return { success: false, message };
   }
+}
+
+export async function createNotificationForCurrentUser(params: {
+  title: string;
+  description?: string;
+  type?: "event" | "alert";
+  ordersId?: string;
+}): Promise<{ success: boolean; message: string }> {
+  return createNotification({ ...params, createdFor: "Customer" });
 }

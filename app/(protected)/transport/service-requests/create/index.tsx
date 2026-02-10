@@ -41,9 +41,27 @@ export default function CreateTransportServiceRequestPage() {
 
   const onSubmit = async () => {
     if (submitting) return;
+    const orderId = order?.trim();
+    const serviceTypeId = serviceType?.trim();
+    if (!orderId || !serviceTypeId) {
+      Alert.alert("Validation", "Please select an order and service type.");
+      return;
+    }
     setSubmitting(true);
     try {
-      Alert.alert("Not implemented", "Create will be wired in lib/actions/transport/genericServiceRequest.ts");
+      const { createTransportServiceRequest } = await import("@/lib/actions/transport/genericServiceRequest");
+      const res = await createTransportServiceRequest({
+        order: orderId,
+        serviceType: serviceTypeId,
+        customerRemarks: customerRemarks.trim() || undefined,
+      });
+      if (res.success) {
+        Alert.alert("Success", res.message, [{ text: "OK", onPress: () => router.back() }]);
+      } else {
+        Alert.alert("Error", res.message);
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e?.message || "Failed to create service request.");
     } finally {
       setSubmitting(false);
     }

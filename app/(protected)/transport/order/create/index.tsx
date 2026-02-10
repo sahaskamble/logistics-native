@@ -81,11 +81,27 @@ export default function CreateTransportOrderPage() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      // No API logic yet
-      Alert.alert(
-        "Not implemented",
-        "Transport order creation will be wired to PocketBase in lib/actions/transport/createOrder.ts"
-      );
+      const { createTransportOrder } = await import("@/lib/actions/transport/createOrder");
+      const res = await createTransportOrder({
+        consigneeName: consigneeName.trim() || undefined,
+        chaName: chaName.trim() || undefined,
+        provider: provider || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        startLocation: startLocation.trim() || undefined,
+        endLocation: endLocation.trim() || undefined,
+        specialRequest: specialRequest.trim() || undefined,
+        vehicleDescription: vehicleDescription.trim() || undefined,
+        orderDescription: orderDescription.trim() || undefined,
+        files: files.length > 0 ? files : undefined,
+      });
+      if (res.success) {
+        Alert.alert("Success", res.message, [{ text: "OK", onPress: () => router.back() }]);
+      } else {
+        Alert.alert("Error", res.message);
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e?.message || "Failed to create order.");
     } finally {
       setSubmitting(false);
     }

@@ -254,6 +254,18 @@ export async function updateCfsRequestById(params: {
     });
 
     const updated = await pb.collection("cfs_service_requests").update<CfsServiceRequestRecord>(id, fd as any);
+
+    try {
+      await createNotificationForCurrentUser({
+        title: "Service Request Updated",
+        description: "Your service request has been updated.",
+        type: "event",
+        ordersId: existing.order,
+      });
+    } catch (err) {
+      console.error("Error creating notification for CFS service request update", err);
+    }
+
     return { success: true, message: "Request updated successfully.", output: updated };
   } catch (err: any) {
     console.error("Error updating CFS service request", err);
