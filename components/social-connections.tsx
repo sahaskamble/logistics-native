@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useColorScheme } from 'nativewind';
-import { Image, Platform, View } from 'react-native';
+import { Alert, Image, Platform, View } from 'react-native';
 import { GoogleLogin } from '@/lib/actions/auth/login';
 
 const SOCIAL_CONNECTION_STRATEGIES = [
@@ -9,7 +9,13 @@ const SOCIAL_CONNECTION_STRATEGIES = [
     type: 'oauth_google',
     source: { uri: 'https://img.clerk.com/static/google.png?width=160' },
     useTint: false,
-    onPressFunction: GoogleLogin,
+    onPressFunction: () => {
+      Platform.OS === "ios" ? Alert.prompt(
+        "Work In progress on google login",
+      ) : Alert.alert(
+        "Work In progress on google login",
+      )
+    },
   },
 ];
 

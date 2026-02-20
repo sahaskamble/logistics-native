@@ -2,6 +2,8 @@ import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
 import { mergeFilters, type PbQueryOptions } from "@/lib/actions/pbOptions";
 import { createNotificationForCurrentUser } from "@/lib/actions/notifications/notification";
+import { sendOrderOrRequestConfirmationEmail } from "@/lib/email/send";
+import { serviceRequestCreatedEmail } from "@/lib/email/templates";
 
 type PbBaseRecord = {
   id: string;
@@ -203,6 +205,17 @@ export async function createCfsRequestByServiceTypeTitle(params: {
       });
     } catch (err) {
       console.error("Error creating notification for CFS service request", err);
+    }
+
+    const customerEmail = user.user.email;
+    if (customerEmail) {
+      const name = user.user.name ?? ([user.user.firstname, user.user.lastname].filter(Boolean).join(" ").trim() || undefined);
+      const { subject, html, text } = serviceRequestCreatedEmail({
+        serviceType: params.serviceTypeTitle,
+        orderId,
+        customerName: name,
+      });
+      await sendOrderOrRequestConfirmationEmail({ toEmail: customerEmail, subject, html, text });
     }
 
     return { success: true, message: "Request created successfully.", output: created };

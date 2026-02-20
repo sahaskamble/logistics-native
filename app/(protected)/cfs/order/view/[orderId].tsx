@@ -22,6 +22,7 @@ import {
   AlertCircle,
   Download,
   ArrowLeft,
+  Ticket,
 } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { getCfsOrderById, type CfsOrderRecord } from '@/lib/actions/cfs/fetch';
@@ -169,6 +170,20 @@ export default function OrderDetailPage() {
         </View>
 
         <View className="p-4 gap-6">
+          {/* Support ticket for this order */}
+          <Button
+            variant="outline"
+            onPress={() =>
+              router.push(
+                `/(protected)/support/create?orderId=${encodeURIComponent(order.id)}` as any
+              )
+            }
+            className="flex-row items-center gap-2"
+          >
+            <Icon as={Ticket} size={18} />
+            <Text>Create support ticket for this order</Text>
+          </Button>
+
           {/* Basic Info Section */}
           <Card>
             <CardHeader>

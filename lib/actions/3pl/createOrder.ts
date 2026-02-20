@@ -1,6 +1,8 @@
 import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
 import { createNotificationForCurrentUser } from "@/lib/actions/notifications/notification";
+import { sendOrderOrRequestConfirmationEmail } from "@/lib/email/send";
+import { orderCreatedEmail } from "@/lib/email/templates";
 
 export type ThreePlOrderRecord = {
   id: string;
@@ -59,6 +61,18 @@ export async function create3plOrder(params: ThreePlOrderCreateParams): Promise<
     } catch (err) {
       console.error("Error creating notification for 3PL order", err);
     }
+
+    const customerEmail = user.user.email;
+    if (customerEmail) {
+      const name = user.user.name ?? ([user.user.firstname, user.user.lastname].filter(Boolean).join(" ").trim() || undefined);
+      const { subject, html, text } = orderCreatedEmail({
+        orderType: "3PL",
+        orderId: (created as any)?.id ?? "",
+        customerName: name,
+      });
+      await sendOrderOrRequestConfirmationEmail({ toEmail: customerEmail, subject, html, text });
+    }
+
     return { success: true, message: "3PL order created successfully.", output: created };
   } catch (err: any) {
     console.error("Error creating 3PL order", err);

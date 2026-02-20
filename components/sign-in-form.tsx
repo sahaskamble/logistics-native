@@ -17,6 +17,7 @@ import { Pressable, type TextInput, View } from 'react-native';
 import { Icon } from './ui/icon';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useRootAuth } from '@/context/RootAuthCtx';
+import * as webBrowser from 'expo-web-browser';
 
 export function SignInForm() {
   const passwordInputRef = React.useRef<TextInput>(null);
@@ -104,9 +105,9 @@ export function SignInForm() {
             Don&apos;t have an account?{' '}
             <Pressable
               onPress={() => {
-                // TODO: Navigate to sign up screen
+                webBrowser.openBrowserAsync('https://linkmylogistics.com/customer/register');
               }}>
-              <Text className="text-sm underline">Sign up</Text>
+              <Text className="text-sm underline mt-1">Sign up</Text>
             </Pressable>
           </Text>
           <View className="flex-row items-center">

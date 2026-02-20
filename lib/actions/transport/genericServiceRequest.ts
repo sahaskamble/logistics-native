@@ -1,6 +1,8 @@
 import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
 import { createNotificationForCurrentUser } from "@/lib/actions/notifications/notification";
+import { sendOrderOrRequestConfirmationEmail } from "@/lib/email/send";
+import { serviceRequestCreatedEmail } from "@/lib/email/templates";
 
 export type TransportServiceRequestStatus = "Pending" | "Accepted" | "Rejected" | "In Progress" | "Completed";
 
@@ -62,6 +64,18 @@ export async function createTransportServiceRequest(
     } catch (err) {
       console.error("Error creating notification for transport service request", err);
     }
+
+    const customerEmail = user.user.email;
+    if (customerEmail) {
+      const name = user.user.name ?? ([user.user.firstname, user.user.lastname].filter(Boolean).join(" ").trim() || undefined);
+      const { subject, html, text } = serviceRequestCreatedEmail({
+        serviceType: "Transport",
+        orderId,
+        customerName: name,
+      });
+      await sendOrderOrRequestConfirmationEmail({ toEmail: customerEmail, subject, html, text });
+    }
+
     return { success: true, message: "Transport service request created successfully.", output: created };
   } catch (err: any) {
     console.error("Error creating transport service request", err);

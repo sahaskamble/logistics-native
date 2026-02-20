@@ -29,6 +29,8 @@ import {
   Scan,
   ScrollText,
   ReceiptIndianRupee,
+  Ticket,
+  MessageCircle,
 } from "lucide-react-native";
 import { View, TouchableOpacity, ScrollView } from "react-native";
 import { createContext, useContext, useState, useEffect, useCallback, Fragment } from "react";
@@ -48,6 +50,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { THEME } from "@/lib/theme";
 
 function CustomTabBar() {
   const router = useRouter()
@@ -261,6 +264,26 @@ export default function ProtectedLayout() {
             { label: "Tax Invoice", route: "/(protected)/warehouse/tax-invoice", icon: ReceiptIndianRupee },
           ],
         },
+      ],
+    },
+    {
+      id: "support",
+      title: "Support",
+      icon: Ticket,
+      route: "/(protected)/support",
+      color: "bg-amber-500",
+      items: [
+        { label: "My Tickets", route: "/(protected)/support", icon: Ticket },
+      ],
+    },
+    {
+      id: "chat",
+      title: "Chat",
+      icon: MessageCircle,
+      route: "/(protected)/chat",
+      color: "bg-teal-500",
+      items: [
+        { label: "Chats", route: "/(protected)/chat", icon: MessageCircle },
       ],
     },
     {
@@ -504,6 +527,22 @@ export default function ProtectedLayout() {
               name="notifications"
               options={{
                 headerTitle: "Notifications",
+                href: null,
+              }}
+            />
+
+            <Tabs.Screen
+              name="support"
+              options={{
+                headerShown: false,
+                href: null,
+              }}
+            />
+
+            <Tabs.Screen
+              name="chat"
+              options={{
+                headerShown: false,
                 href: null,
               }}
             />

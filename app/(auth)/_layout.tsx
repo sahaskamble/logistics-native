@@ -16,7 +16,6 @@ export default function AuthLayout() {
           />
         </View>
       ),
-      headerRight: () => <ThemeToggle />
     }}>
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />

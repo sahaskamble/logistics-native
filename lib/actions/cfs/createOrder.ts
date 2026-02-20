@@ -2,6 +2,8 @@ import pb from "@/lib/pocketbase/pb";
 import { getCurrentUser } from "@/lib/actions/users";
 import { mergeFilters, type PbQueryOptions } from "@/lib/actions/pbOptions";
 import { createNotificationForCurrentUser } from "@/lib/actions/notifications/notification";
+import { sendOrderOrRequestConfirmationEmail } from "@/lib/email/send";
+import { orderCreatedEmail } from "@/lib/email/templates";
 
 type PbBaseRecord = {
   id: string;
@@ -217,6 +219,18 @@ export async function createCfsOrder(params: CfsOrderCreateParams): Promise<{
       });
     } catch (err) {
       console.error("Error creating notification for CFS order", err);
+    }
+
+    // Best-effort: send confirmation email to customer.
+    const customerEmail = user.user.email;
+    if (customerEmail) {
+      const name = user.user.name ?? ([user.user.firstname, user.user.lastname].filter(Boolean).join(" ").trim() || undefined);
+      const { subject, html, text } = orderCreatedEmail({
+        orderType: "CFS",
+        orderId: (created as any)?.id ?? "",
+        customerName: name,
+      });
+      await sendOrderOrRequestConfirmationEmail({ toEmail: customerEmail, subject, html, text });
     }
 
     return {

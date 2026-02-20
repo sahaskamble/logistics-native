@@ -32,17 +32,21 @@ export async function PasswordLogin(UsernameOrEmail: string, password: string) {
 }
 
 export async function GoogleLogin() {
+  console.log("Inside")
   try {
     const response: RecordAuthResponse = await pb.collection('users').authWithOAuth2({
       provider: 'google',
-      urlCallback: (url) => {
-        webBrowser.openAuthSessionAsync(url, "linkmylogistics://", {
+      urlCallback: async (url) => {
+        const result = await webBrowser.openAuthSessionAsync(url, "linkmylogistics://", {
           preferEphemeralSession: true,
-        }).catch(console.error);
+        });
+        console.log("Browser result", result);
+        if (Platform.OS === 'ios') {
+          webBrowser.dismissAuthSession();
+        }
       }
     });
     if (response.record.id) {
-      Platform.OS === 'ios' && webBrowser.dismissAuthSession();
       const addUserDetails = await pb.collection('users').update(response.record.id, {
         firstname: response.meta?.rawUser?.given_name,
         lastname: response.meta?.rawUser?.family_name,
